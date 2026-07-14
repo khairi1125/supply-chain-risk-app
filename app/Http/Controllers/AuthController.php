@@ -23,9 +23,33 @@ class AuthController extends Controller
         ]);
 
         if (Auth::attempt($credentials, $request->boolean('remember'))) {
+            $user = Auth::user();
+            
+            // Check if user is active
+            if (!$user->is_active) {
+                Auth::logout();
+                return back()->withErrors([
+                    'email' => 'Your account has been deactivated. Please contact administrator.',
+                ])->onlyInput('email');
+            }
+            
             $request->session()->regenerate();
             
-            if (Auth::user()->role === 'admin') {
+            // Update last login timestamp
+            $user->update(['last_login' => now()]);
+            
+            // Log activity
+            \DB::table('activity_logs')->insert([
+                'user_id' => $user->id,
+                'action' => 'login',
+                'description' => 'User logged in to the system',
+                'ip_address' => $request->ip(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+            
+            // Redirect based on role
+            if ($user->role === 'admin') {
                 return redirect()->intended(route('admin.index'));
             }
             
@@ -39,10 +63,24 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
+        $user = Auth::user();
+        
+        // Log activity before logout
+        if ($user) {
+            \DB::table('activity_logs')->insert([
+                'user_id' => $user->id,
+                'action' => 'logout',
+                'description' => 'User logged out from the system',
+                'ip_address' => $request->ip(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+        
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
         
-        return redirect()->route('login');
+        return redirect()->route('login')->with('success', 'You have been logged out successfully.');
     }
 }

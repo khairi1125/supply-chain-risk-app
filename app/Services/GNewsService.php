@@ -3,7 +3,7 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 class GNewsService
 {
@@ -16,45 +16,104 @@ class GNewsService
     }
 
     /**
-     * Search news articles
+     * Get news by country with database caching
      */
-    public function searchNews($query, $country = null, $category = null, $max = 10)
+    public function getNewsByCountry($countryName, $limit = 10)
     {
-        $cacheKey = "gnews_" . md5($query . $country . $category);
+        $query = "{$countryName} logistics OR trade OR shipping OR economy";
         
-        return Cache::remember($cacheKey, 1800, function () use ($query, $country, $category, $max) {
-            try {
-                if (empty($this->apiKey) || $this->apiKey === 'your_key_here') {
-                    return $this->getMockNews($query);
-                }
-
-                $params = [
-                    'q' => $query,
-                    'apikey' => $this->apiKey,
-                    'max' => $max,
-                    'lang' => 'en'
+        // Check cache in database first (valid for 2 hours)
+        $cached = \DB::table('news_cache')
+            ->where('country_code', strtoupper(substr($countryName, 0, 3)))
+            ->where('created_at', '>=', now()->subHours(2))
+            ->limit($limit)
+            ->get();
+            
+        if ($cached->isNotEmpty()) {
+            return $cached->map(function ($item) {
+                return [
+                    'title' => $item->title,
+                    'description' => $item->description,
+                    'url' => $item->url,
+                    'source' => $item->source,
+                    'published_at' => $item->published_at,
                 ];
+            })->toArray();
+        }
+        
+        return $this->searchNews($query, null, null, $limit, $countryName);
+    }
 
-                if ($country) {
-                    $params['country'] = $country;
-                }
+    /**
+     * Get general news about a topic
+     */
+    public function getNewsGeneral($topic = 'supply chain', $limit = 10)
+    {
+        $query = "{$topic} logistics trade shipping";
+        return $this->searchNews($query, null, null, $limit);
+    }
 
-                if ($category) {
-                    $params['category'] = $category;
-                }
-
-                $response = Http::get("{$this->baseUrl}/search", $params);
-
-                if ($response->successful()) {
-                    return $response->json();
-                }
-
-                return $this->getMockNews($query);
-            } catch (\Exception $e) {
-                \Log::error('GNews API Error: ' . $e->getMessage());
+    /**
+     * Search news articles with caching
+     */
+    public function searchNews($query, $country = null, $category = null, $max = 10, $cacheCountryName = null)
+    {
+        try {
+            if (empty($this->apiKey) || $this->apiKey === 'your_key_here' || strlen($this->apiKey) < 10) {
+                Log::warning('GNews API: Using mock data (invalid or missing API key)');
                 return $this->getMockNews($query);
             }
-        });
+
+            $params = [
+                'q' => $query,
+                'apikey' => $this->apiKey,
+                'max' => $max,
+                'lang' => 'en'
+            ];
+
+            if ($country) {
+                $params['country'] = $country;
+            }
+
+            if ($category) {
+                $params['category'] = $category;
+            }
+
+            $response = Http::withOptions(['verify' => false])->timeout(15)->get("{$this->baseUrl}/search", $params);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                
+                // Check for API errors
+                if (isset($data['errors'])) {
+                    Log::error('GNews API Error: ' . json_encode($data['errors']));
+                    return $this->getMockNews($query);
+                }
+                
+                $articles = $data['articles'] ?? [];
+                
+                // Cache articles to database
+                if ($cacheCountryName && !empty($articles)) {
+                    $this->cacheNews($articles, $cacheCountryName);
+                }
+                
+                return collect($articles)->map(function ($article) {
+                    return [
+                        'title' => $article['title'] ?? '',
+                        'description' => $article['description'] ?? '',
+                        'url' => $article['url'] ?? '',
+                        'source' => $article['source']['name'] ?? 'Unknown',
+                        'published_at' => $article['publishedAt'] ?? now()->toIso8601String(),
+                    ];
+                })->toArray();
+            }
+
+            Log::error('GNews API failed', ['status' => $response->status()]);
+            return $this->getMockNews($query);
+        } catch (\Exception $e) {
+            Log::error('GNews API Error: ' . $e->getMessage());
+            return $this->getMockNews($query);
+        }
     }
 
     /**
@@ -62,32 +121,55 @@ class GNewsService
      */
     public function getTopHeadlines($category = 'business', $country = 'us', $max = 10)
     {
-        $cacheKey = "gnews_headlines_{$category}_{$country}";
-        
-        return Cache::remember($cacheKey, 1800, function () use ($category, $country, $max) {
-            try {
-                if (empty($this->apiKey) || $this->apiKey === 'your_key_here') {
-                    return $this->getMockNews('headlines');
-                }
-
-                $response = Http::get("{$this->baseUrl}/top-headlines", [
-                    'category' => $category,
-                    'country' => $country,
-                    'apikey' => $this->apiKey,
-                    'max' => $max,
-                    'lang' => 'en'
-                ]);
-
-                if ($response->successful()) {
-                    return $response->json();
-                }
-
-                return $this->getMockNews('headlines');
-            } catch (\Exception $e) {
-                \Log::error('GNews Headlines API Error: ' . $e->getMessage());
+        try {
+            if (empty($this->apiKey) || $this->apiKey === 'your_key_here') {
                 return $this->getMockNews('headlines');
             }
-        });
+
+            $response = Http::withOptions(['verify' => false])->timeout(15)->get("{$this->baseUrl}/top-headlines", [
+                'category' => $category,
+                'country' => $country,
+                'apikey' => $this->apiKey,
+                'max' => $max,
+                'lang' => 'en'
+            ]);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                return $data['articles'] ?? [];
+            }
+
+            return $this->getMockNews('headlines');
+        } catch (\Exception $e) {
+            Log::error('GNews Headlines API Error: ' . $e->getMessage());
+            return $this->getMockNews('headlines');
+        }
+    }
+    
+    /**
+     * Cache news to database
+     */
+    private function cacheNews($articles, $countryName)
+    {
+        try {
+            $countryCode = strtoupper(substr($countryName, 0, 3));
+            
+            foreach ($articles as $article) {
+                \DB::table('news_cache')->insert([
+                    'country_code' => $countryCode,
+                    'title' => $article['title'] ?? '',
+                    'description' => $article['description'] ?? '',
+                    'url' => $article['url'] ?? '',
+                    'source' => $article['source']['name'] ?? 'Unknown',
+                    'sentiment' => 'neutral', // Will be analyzed later
+                    'published_at' => $article['publishedAt'] ?? now(),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+        } catch (\Exception $e) {
+            Log::error('Failed to cache news: ' . $e->getMessage());
+        }
     }
 
     /**
@@ -96,45 +178,27 @@ class GNewsService
     private function getMockNews($query)
     {
         return [
-            'totalArticles' => 3,
-            'articles' => [
-                [
-                    'title' => 'Supply Chain Disruption in Asia-Pacific Region',
-                    'description' => 'Major supply chain disruptions affecting global trade...',
-                    'content' => 'Full article content here...',
-                    'url' => 'https://example.com/news/1',
-                    'image' => 'https://via.placeholder.com/400x300',
-                    'publishedAt' => now()->subHours(2)->toIso8601String(),
-                    'source' => [
-                        'name' => 'Supply Chain News',
-                        'url' => 'https://example.com'
-                    ]
-                ],
-                [
-                    'title' => 'Global Shipping Costs Rise Amid Port Congestion',
-                    'description' => 'Shipping costs continue to increase due to port delays...',
-                    'content' => 'Full article content here...',
-                    'url' => 'https://example.com/news/2',
-                    'image' => 'https://via.placeholder.com/400x300',
-                    'publishedAt' => now()->subHours(5)->toIso8601String(),
-                    'source' => [
-                        'name' => 'Global Trade Magazine',
-                        'url' => 'https://example.com'
-                    ]
-                ],
-                [
-                    'title' => 'New Technology Improves Supply Chain Visibility',
-                    'description' => 'Companies adopting AI for better supply chain management...',
-                    'content' => 'Full article content here...',
-                    'url' => 'https://example.com/news/3',
-                    'image' => 'https://via.placeholder.com/400x300',
-                    'publishedAt' => now()->subHours(8)->toIso8601String(),
-                    'source' => [
-                        'name' => 'Tech Business Daily',
-                        'url' => 'https://example.com'
-                    ]
-                ]
-            ]
+            [
+                'title' => 'Supply Chain Disruption in Asia-Pacific Region',
+                'description' => 'Major supply chain disruptions affecting global trade due to port congestion and shipping delays...',
+                'url' => 'https://example.com/news/1',
+                'source' => 'Supply Chain News',
+                'published_at' => now()->subHours(2)->toIso8601String(),
+            ],
+            [
+                'title' => 'Global Shipping Costs Rise Amid Port Congestion',
+                'description' => 'Shipping costs continue to increase due to port delays and container shortages worldwide...',
+                'url' => 'https://example.com/news/2',
+                'source' => 'Global Trade Magazine',
+                'published_at' => now()->subHours(5)->toIso8601String(),
+            ],
+            [
+                'title' => 'New Technology Improves Supply Chain Visibility',
+                'description' => 'Companies are adopting AI and blockchain technology for better supply chain management and tracking...',
+                'url' => 'https://example.com/news/3',
+                'source' => 'Tech Business Daily',
+                'published_at' => now()->subHours(8)->toIso8601String(),
+            ],
         ];
     }
 }

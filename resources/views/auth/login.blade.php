@@ -165,7 +165,7 @@
             <div class="text-center mt-4">
                 <small class="text-muted">
                     <i class="fas fa-info-circle"></i> 
-                    Demo: admin@example.com / user@example.com (password: password)
+                    Demo: admin@supply.com / user@supply.com (password: admin123 / user123)
                 </small>
             </div>
         </div>
