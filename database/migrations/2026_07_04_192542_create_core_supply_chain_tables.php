@@ -8,16 +8,8 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // 1. Tabel Negara (Master Data)
-        Schema::create('countries', function (Blueprint $table) {
-            $table->id();
-            $table->string('code', 3)->unique(); // Contoh: IDN, DEU, USA
-            $table->string('name');              // Contoh: Indonesia, Germany
-            $table->string('currency_code', 5);  // Contoh: IDR, EUR, USD
-            $table->string('region')->nullable();
-            $table->timestamps();
-        });
-
+        // Note: countries table is created by 2026_07_13_121629_create_countries_table.php
+        
         // 2. Tabel Pelabuhan (Geospatial & Marine Data)
         Schema::create('ports', function (Blueprint $table) {
             $table->id();
@@ -89,6 +81,6 @@ return new class extends Migration
         Schema::dropIfExists('positive_words');
         Schema::dropIfExists('watchlists');
         Schema::dropIfExists('ports');
-        Schema::dropIfExists('countries');
+        // Note: countries table is dropped by 2026_07_13_121629_create_countries_table.php
     }
 };

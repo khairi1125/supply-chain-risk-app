@@ -47,6 +47,7 @@ class RestCountriesService
                         return [
                             'name' => $country['name']['common'] ?? 'Unknown',
                             'code' => $country['cca3'] ?? null,
+                            'cca2' => $country['cca2'] ?? null,
                             'region' => $country['region'] ?? 'Unknown',
                             'currency_code' => $firstCurrencyCode,
                             'currency_name' => $firstCurrencyData['name'] ?? null,

@@ -14,7 +14,7 @@ class DashboardController extends Controller
             'total_countries' => DB::table('countries')->count(),
             'total_ports' => DB::table('ports')->count(),
             'high_risk_countries' => DB::table('risk_scores')
-                ->whereIn('risk_level', ['high', 'critical'])
+                ->where('total_score', '>', 50)
                 ->count(),
             'total_news' => DB::table('news_cache')->count(),
         ];

@@ -19,7 +19,7 @@ class WorldBankService
         
         return Cache::remember($cacheKey, 86400, function () use ($countryCode) {
             try {
-                $response = Http::withOptions(['verify' => false])->timeout(15)->get("{$this->baseUrl}/country/{$countryCode}/indicator/NY.GDP.MKTP.CD", [
+                $response = Http::withoutVerifying()->timeout(15)->get("{$this->baseUrl}/country/{$countryCode}/indicator/NY.GDP.MKTP.CD", [
                     'format' => 'json',
                     'mrv' => 5,
                     'per_page' => 100
@@ -57,7 +57,7 @@ class WorldBankService
         
         return Cache::remember($cacheKey, 86400, function () use ($countryCode) {
             try {
-                $response = Http::withOptions(['verify' => false])->timeout(15)->get("{$this->baseUrl}/country/{$countryCode}/indicator/FP.CPI.TOTL.ZG", [
+                $response = Http::withoutVerifying()->timeout(15)->get("{$this->baseUrl}/country/{$countryCode}/indicator/FP.CPI.TOTL.ZG", [
                     'format' => 'json',
                     'mrv' => 5,
                     'per_page' => 100
@@ -95,7 +95,7 @@ class WorldBankService
         
         return Cache::remember($cacheKey, 86400, function () use ($countryCode) {
             try {
-                $response = Http::withOptions(['verify' => false])->timeout(15)->get("{$this->baseUrl}/country/{$countryCode}/indicator/SP.POP.TOTL", [
+                $response = Http::withoutVerifying()->timeout(15)->get("{$this->baseUrl}/country/{$countryCode}/indicator/SP.POP.TOTL", [
                     'format' => 'json',
                     'mrv' => 1,
                     'per_page' => 100
@@ -125,7 +125,7 @@ class WorldBankService
         
         return Cache::remember($cacheKey, 86400, function () use ($countryCode) {
             try {
-                $response = Http::withOptions(['verify' => false])->timeout(15)->get("{$this->baseUrl}/country/{$countryCode}/indicator/NE.EXP.GNFS.CD", [
+                $response = Http::withoutVerifying()->timeout(15)->get("{$this->baseUrl}/country/{$countryCode}/indicator/NE.EXP.GNFS.CD", [
                     'format' => 'json',
                     'mrv' => 1,
                     'per_page' => 100
@@ -155,7 +155,7 @@ class WorldBankService
         
         return Cache::remember($cacheKey, 86400, function () use ($countryCode) {
             try {
-                $response = Http::withOptions(['verify' => false])->timeout(15)->get("{$this->baseUrl}/country/{$countryCode}/indicator/NE.IMP.GNFS.CD", [
+                $response = Http::withoutVerifying()->timeout(15)->get("{$this->baseUrl}/country/{$countryCode}/indicator/NE.IMP.GNFS.CD", [
                     'format' => 'json',
                     'mrv' => 1,
                     'per_page' => 100

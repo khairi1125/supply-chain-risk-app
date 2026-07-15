@@ -53,6 +53,7 @@ class FetchCountriesCommand extends Command
                     // Update existing country
                     DB::table('countries')->where('code', $country['code'])->update([
                         'name' => $country['name'],
+                        'cca2' => $country['cca2'] ?? null,
                         'region' => $country['region'],
                         'currency_code' => $country['currency_code'],
                         'currency_name' => $country['currency_name'],
@@ -67,6 +68,7 @@ class FetchCountriesCommand extends Command
                     DB::table('countries')->insert([
                         'name' => $country['name'],
                         'code' => $country['code'],
+                        'cca2' => $country['cca2'] ?? null,
                         'region' => $country['region'],
                         'currency_code' => $country['currency_code'],
                         'currency_name' => $country['currency_name'],

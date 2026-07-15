@@ -83,10 +83,11 @@ class CountryController extends Controller
         // Get weather data
         $weather = $this->meteoService->getWeather($country->latitude, $country->longitude);
 
-        // Get economic data from World Bank
-        $gdpData = $this->worldBankService->getGDP($code);
-        $inflationData = $this->worldBankService->getInflation($code);
-        $population = $this->worldBankService->getPopulation($code);
+        // Get economic data from World Bank (use cca2 for World Bank API)
+        $worldBankCode = $country->cca2 ?? $code; // Fallback to cca3 if cca2 not available
+        $gdpData = $this->worldBankService->getGDP($worldBankCode);
+        $inflationData = $this->worldBankService->getInflation($worldBankCode);
+        $population = $this->worldBankService->getPopulation($worldBankCode);
 
         // Get latest values
         $latestGdp = !empty($gdpData) ? reset($gdpData) : null;
@@ -175,7 +176,10 @@ class CountryController extends Controller
         }
 
         $weather = $this->meteoService->getWeather($country->latitude, $country->longitude);
-        $inflationData = $this->worldBankService->getInflation($code);
+        
+        // Use cca2 for World Bank API
+        $worldBankCode = $country->cca2 ?? $code;
+        $inflationData = $this->worldBankService->getInflation($worldBankCode);
         $latestInflation = !empty($inflationData) ? reset($inflationData) : null;
 
         $riskData = [
@@ -196,8 +200,17 @@ class CountryController extends Controller
      */
     public function getWorldBankData($code)
     {
-        $gdpData = $this->worldBankService->getGDP($code);
-        $inflationData = $this->worldBankService->getInflation($code);
+        // Get country to fetch cca2
+        $country = DB::table('countries')->where('code', $code)->first();
+        
+        if (!$country) {
+            return response()->json(['error' => 'Country not found'], 404);
+        }
+        
+        // Use cca2 for World Bank API
+        $worldBankCode = $country->cca2 ?? $code;
+        $gdpData = $this->worldBankService->getGDP($worldBankCode);
+        $inflationData = $this->worldBankService->getInflation($worldBankCode);
 
         return response()->json([
             'gdp_trend' => $this->formatTrendData($gdpData),
