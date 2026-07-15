@@ -2,19 +2,25 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Api\CurrencyController; // Tambahkan baris ini
+use App\Http\Controllers\Api\CountryController;
+use App\Http\Controllers\Api\CurrencyController;
 use App\Http\Controllers\Api\NewsController;
+use App\Http\Controllers\Api\RiskController;
+use App\Http\Controllers\Api\PortController;
+use App\Http\Controllers\Api\WeatherController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
-use App\Http\Controllers\Api\CountryController;
+// Country API endpoints
+Route::get('/countries', [CountryController::class, 'index']); // List with filters
+Route::get('/countries/{code}', [CountryController::class, 'show']); // Detailed info
+Route::get('/risk/{code}', [CountryController::class, 'getRisk']); // Risk score only
+Route::get('/worldbank/{code}', [CountryController::class, 'getWorldBankData']); // GDP & Inflation trends
 
-Route::get('/countries', [CountryController::class, 'index']);
+// Currency endpoints
 Route::get('/currency/{country_code}', [CurrencyController::class, 'getExchangeRate']);
-// Rute untuk berita
-Route::get('/news/{country_code}', [NewsController::class, 'getNews']);
-use App\Http\Controllers\Api\RiskController;
 
-Route::get('/risk/{country_code}', [RiskController::class, 'calculateRisk']);
+// News endpoints
+Route::get('/news/{country_code}', [NewsController::class, 'getNews']);

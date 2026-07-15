@@ -30,7 +30,7 @@
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
                             <h6 class="mb-0">Countries Monitored</h6>
-                            <h2 class="mb-0 mt-2">195</h2>
+                            <h2 class="mb-0 mt-2">{{ $stats['total_countries'] }}</h2>
                         </div>
                         <div>
                             <i class="fas fa-globe fa-3x opacity-50"></i>
@@ -46,7 +46,7 @@
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
                             <h6 class="mb-0">Active Ports</h6>
-                            <h2 class="mb-0 mt-2">1,247</h2>
+                            <h2 class="mb-0 mt-2">{{ $stats['total_ports'] }}</h2>
                         </div>
                         <div>
                             <i class="fas fa-anchor fa-3x opacity-50"></i>
@@ -62,7 +62,7 @@
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
                             <h6 class="mb-0">Risk Alerts</h6>
-                            <h2 class="mb-0 mt-2">23</h2>
+                            <h2 class="mb-0 mt-2">{{ $stats['high_risk_countries'] }}</h2>
                         </div>
                         <div>
                             <i class="fas fa-exclamation-triangle fa-3x opacity-50"></i>
@@ -78,7 +78,7 @@
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
                             <h6 class="mb-0">News Updates</h6>
-                            <h2 class="mb-0 mt-2">156</h2>
+                            <h2 class="mb-0 mt-2">{{ $stats['total_news'] }}</h2>
                         </div>
                         <div>
                             <i class="fas fa-newspaper fa-3x opacity-50"></i>
@@ -167,6 +167,7 @@
                     </h5>
                 </div>
                 <div class="card-body">
+                    @if($highRiskCountries->count() > 0)
                     <div class="table-responsive">
                         <table class="table table-sm">
                             <thead>
@@ -177,29 +178,35 @@
                                 </tr>
                             </thead>
                             <tbody>
+                                @foreach($highRiskCountries as $country)
                                 <tr>
-                                    <td><i class="fas fa-flag"></i> Country A</td>
-                                    <td><span class="badge bg-danger">85</span></td>
-                                    <td><span class="text-danger">Critical</span></td>
+                                    <td>
+                                        <img src="{{ $country->flag_url }}" alt="{{ $country->name }}" style="width: 20px; height: 15px; margin-right: 5px;">
+                                        {{ $country->name }}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-{{ $country->total_score >= 76 ? 'danger' : 'warning' }}">
+                                            {{ number_format($country->total_score, 1) }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="text-{{ $country->total_score >= 76 ? 'danger' : 'warning' }}">
+                                            {{ ucfirst($country->risk_level) }}
+                                        </span>
+                                    </td>
                                 </tr>
-                                <tr>
-                                    <td><i class="fas fa-flag"></i> Country B</td>
-                                    <td><span class="badge bg-danger">78</span></td>
-                                    <td><span class="text-danger">Critical</span></td>
-                                </tr>
-                                <tr>
-                                    <td><i class="fas fa-flag"></i> Country C</td>
-                                    <td><span class="badge bg-warning">65</span></td>
-                                    <td><span class="text-warning">High</span></td>
-                                </tr>
-                                <tr>
-                                    <td><i class="fas fa-flag"></i> Country D</td>
-                                    <td><span class="badge bg-warning">62</span></td>
-                                    <td><span class="text-warning">High</span></td>
-                                </tr>
+                                @endforeach
                             </tbody>
                         </table>
                     </div>
+                    @else
+                    <p class="text-muted text-center">No high risk countries at the moment.</p>
+                    <p class="text-center">
+                        <a href="{{ route('country.monitor') }}" class="btn btn-sm btn-primary">
+                            View All Countries
+                        </a>
+                    </p>
+                    @endif
                 </div>
             </div>
         </div>

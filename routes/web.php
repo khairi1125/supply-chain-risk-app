@@ -30,6 +30,7 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout')->middl
 // User Dashboard Routes (require authentication)
 Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard.index');
+    Route::get('/country-monitor', [DashboardController::class, 'countryMonitor'])->name('country.monitor');
 });
 
 // Admin Routes (require authentication + admin role)

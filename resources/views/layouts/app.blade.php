@@ -9,6 +9,9 @@
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    
     <!-- Font Awesome -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     
@@ -22,8 +25,42 @@
         
         .sidebar {
             min-height: 100vh;
+            height: 100vh;
             background: linear-gradient(180deg, #2c3e50 0%, #34495e 100%);
             box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            width: 260px;
+            flex-shrink: 0;
+            position: fixed;
+            top: 0;
+            left: 0;
+            overflow-y: auto;
+            z-index: 1000;
+        }
+        
+        /* Custom scrollbar for sidebar */
+        .sidebar::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .sidebar::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.1);
+        }
+        
+        .sidebar::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.3);
+            border-radius: 3px;
+        }
+        
+        .sidebar::-webkit-scrollbar-thumb:hover {
+            background: rgba(255,255,255,0.5);
+        }
+        
+        /* Add margin to content to compensate for fixed sidebar */
+        .content-wrapper {
+            margin-left: 260px;
+            background-color: #f8f9fa;
+            min-height: 100vh;
+            padding: 0;
         }
         
         .sidebar .nav-link {
@@ -32,6 +69,9 @@
             margin: 5px 10px;
             border-radius: 8px;
             transition: all 0.3s ease;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
         }
         
         .sidebar .nav-link:hover {
@@ -53,11 +93,9 @@
         .navbar {
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             background: #fff !important;
-        }
-        
-        .content-wrapper {
-            background-color: #f8f9fa;
-            min-height: 100vh;
+            position: sticky;
+            top: 0;
+            z-index: 999;
         }
         
         .card {
@@ -82,21 +120,19 @@
         }
     </style>
     
-    @stack('styles')
 </head>
 <body>
-    <div class="d-flex">
-        <!-- Sidebar -->
-        <div class="sidebar" style="width: 260px;">
-            <div class="brand-logo">
-                <i class="fas fa-ship-fast"></i> Supply Chain Risk
-            </div>
+    <!-- Sidebar (Fixed) -->
+    <div class="sidebar">
+        <div class="brand-logo">
+            <i class="fas fa-ship-fast"></i> Supply Chain Risk
+        </div>
             
             <nav class="nav flex-column mt-4">
                 <a class="nav-link {{ request()->routeIs('dashboard.index') ? 'active' : '' }}" href="{{ route('dashboard.index') }}">
                     <i class="fas fa-dashboard"></i> Dashboard
                 </a>
-                <a class="nav-link" href="#">
+                <a class="nav-link {{ request()->routeIs('country.monitor') ? 'active' : '' }}" href="{{ route('country.monitor') }}">
                     <i class="fas fa-globe"></i> Country Monitor
                 </a>
                 <a class="nav-link" href="#">
@@ -124,15 +160,15 @@
                     <i class="fas fa-shield-halved"></i> Admin Panel
                 </a>
                 @endif
-            </nav>
         </div>
-        
-        <!-- Main Content -->
-        <div class="flex-grow-1">
-            <!-- Top Navbar -->
-            <nav class="navbar navbar-expand-lg navbar-light bg-white">
-                <div class="container-fluid">
-                    <span class="navbar-brand mb-0 h1">@yield('page-title', 'Dashboard')</span>
+    </div>
+    
+    <!-- Main Content Wrapper (with left margin for fixed sidebar) -->
+    <div class="content-wrapper">
+        <!-- Top Navbar -->
+        <nav class="navbar navbar-expand-lg navbar-light bg-white sticky-top">
+            <div class="container-fluid">
+                <span class="navbar-brand mb-0 h1">@yield('page-title', 'Dashboard')</span>
                     
                     <ul class="navbar-nav ms-auto">
                         <li class="nav-item dropdown">
@@ -157,8 +193,8 @@
                 </div>
             </nav>
             
-            <!-- Content -->
-            <div class="content-wrapper p-4">
+            <!-- Page Content with Padding -->
+            <div style="padding: 20px;">
                 @if(session('success'))
                 <div class="alert alert-success alert-dismissible fade show" role="alert">
                     <i class="fas fa-check-circle"></i> {{ session('success') }}
