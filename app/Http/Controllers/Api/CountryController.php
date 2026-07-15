@@ -91,7 +91,7 @@ class CountryController extends Controller
 
         // Get latest values
         $latestGdp = !empty($gdpData) ? reset($gdpData) : null;
-        $latestInflation = !empty($inflationData) ? reset($inflationData) : null;
+        $latestInflation = !empty($inflationData) ? round(reset($inflationData), 2) : null;
 
         // Get currency info
         $currencyRate = null;
@@ -221,7 +221,7 @@ class CountryController extends Controller
     /**
      * Format trend data for charts
      */
-    private function formatTrendData($data)
+    private function formatTrendData($data, $decimals = 2)
     {
         if (empty($data)) {
             return [];
@@ -231,7 +231,7 @@ class CountryController extends Controller
         foreach ($data as $year => $value) {
             $formatted[] = [
                 'year' => $year,
-                'value' => $value
+                'value' => round($value, $decimals)
             ];
         }
 
