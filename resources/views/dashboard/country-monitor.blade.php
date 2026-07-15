@@ -208,6 +208,57 @@
                         </div>
                     </div>
 
+                    <!-- ROW 3.5: News Intelligence -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                                    <h6 class="mb-0">📰 Recent News & Sentiment Analysis</h6>
+                                    <div id="sentimentBadge"></div>
+                                </div>
+                                <div class="card-body">
+                                    <!-- Sentiment Summary -->
+                                    <div class="row mb-3">
+                                        <div class="col-md-3">
+                                            <div class="text-center p-2 bg-success-subtle rounded">
+                                                <div class="fs-4 fw-bold text-success" id="sentimentPositive">0</div>
+                                                <small class="text-muted">👍 Positive</small>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <div class="text-center p-2 bg-secondary-subtle rounded">
+                                                <div class="fs-4 fw-bold text-secondary" id="sentimentNeutral">0</div>
+                                                <small class="text-muted">➖ Neutral</small>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <div class="text-center p-2 bg-danger-subtle rounded">
+                                                <div class="fs-4 fw-bold text-danger" id="sentimentNegative">0</div>
+                                                <small class="text-muted">👎 Negative</small>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <div class="text-center p-2 bg-info-subtle rounded">
+                                                <div class="fs-4 fw-bold text-info" id="sentimentTotal">0</div>
+                                                <small class="text-muted">📊 Total Articles</small>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- News Articles List -->
+                                    <div id="newsArticlesList">
+                                        <div class="text-center text-muted py-4">
+                                            <div class="spinner-border spinner-border-sm" role="status">
+                                                <span class="visually-hidden">Loading...</span>
+                                            </div>
+                                            <p class="mt-2">Loading news...</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- ROW 4: Actions -->
                     <div class="row">
                         <div class="col-12">
@@ -364,6 +415,9 @@ async function showCountryDetail(code) {
         renderGDPChart(data.economic.gdp);
         renderInflationChart(data.economic.inflation);
         
+        // News & Sentiment
+        renderNews(data.news);
+        
         // Hide loading, show content
         document.getElementById('modalLoading').style.display = 'none';
         document.getElementById('modalContent').style.display = 'block';
@@ -484,6 +538,59 @@ function formatNumber(num) {
     if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
     if (num >= 1e3) return (num / 1e3).toFixed(2) + 'K';
     return num.toLocaleString();
+}
+
+// Render News & Sentiment
+function renderNews(newsData) {
+    const sentiment = newsData.sentiment;
+    const articles = newsData.articles || [];
+    
+    // Update sentiment summary
+    document.getElementById('sentimentPositive').textContent = sentiment.positive || 0;
+    document.getElementById('sentimentNeutral').textContent = sentiment.neutral || 0;
+    document.getElementById('sentimentNegative').textContent = sentiment.negative || 0;
+    document.getElementById('sentimentTotal').textContent = sentiment.total || 0;
+    
+    // Update overall sentiment badge
+    const badgeElement = document.getElementById('sentimentBadge');
+    const overallSentiment = sentiment.overall_sentiment || 'neutral';
+    const badgeColor = overallSentiment === 'positive' ? 'success' : (overallSentiment === 'negative' ? 'danger' : 'secondary');
+    const sentimentIcon = overallSentiment === 'positive' ? '👍' : (overallSentiment === 'negative' ? '👎' : '➖');
+    badgeElement.innerHTML = `<span class="badge bg-${badgeColor}">${sentimentIcon} Overall: ${overallSentiment.toUpperCase()}</span>`;
+    
+    // Render articles list
+    const articlesList = document.getElementById('newsArticlesList');
+    
+    if (articles.length === 0) {
+        articlesList.innerHTML = '<div class="text-center text-muted py-4"><p>No recent news articles found for this country.</p></div>';
+        return;
+    }
+    
+    let html = '<div class="list-group">';
+    articles.forEach((article, index) => {
+        const sentimentIcon = article.sentiment === 'positive' ? '👍' : (article.sentiment === 'negative' ? '👎' : '➖');
+        const sentimentColor = article.sentiment === 'positive' ? 'success' : (article.sentiment === 'negative' ? 'danger' : 'secondary');
+        const publishedDate = new Date(article.published_at).toLocaleDateString();
+        
+        html += `
+            <a href="${article.url}" target="_blank" class="list-group-item list-group-item-action">
+                <div class="d-flex w-100 justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <h6 class="mb-1">${article.title}</h6>
+                        <p class="mb-1 text-muted small">${article.description || 'No description available'}</p>
+                        <small class="text-muted">
+                            <i class="bi bi-newspaper"></i> ${article.source} • 
+                            <i class="bi bi-calendar"></i> ${publishedDate}
+                        </small>
+                    </div>
+                    <span class="badge bg-${sentimentColor} ms-2">${sentimentIcon} ${article.sentiment}</span>
+                </div>
+            </a>
+        `;
+    });
+    html += '</div>';
+    
+    articlesList.innerHTML = html;
 }
 </script>
 @endpush
