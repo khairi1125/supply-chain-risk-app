@@ -121,15 +121,23 @@ class RiskScoringService
     /**
      * Calculate News Sentiment Risk (Weight: 25%)
      * Based on sentiment analysis of news articles
+     * Can accept either numeric risk score or sentiment string
      */
-    private function calculateNewsRisk($sentiment)
+    private function calculateNewsRisk($newsData)
     {
-        if ($sentiment === null) {
+        // If already a numeric score (0-100), use it directly
+        if (is_numeric($newsData) && $newsData >= 0 && $newsData <= 100) {
+            return $newsData;
+        }
+        
+        // If null, use default
+        if ($newsData === null) {
             return 50; // Default if no data
         }
         
+        // If string sentiment, convert to score
         // Sentiment can be: 'positive', 'neutral', 'negative', 'very_negative'
-        switch (strtolower($sentiment)) {
+        switch (strtolower($newsData)) {
             case 'positive':
                 return 20;
             case 'neutral':

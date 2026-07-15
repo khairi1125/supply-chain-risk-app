@@ -114,13 +114,17 @@ class CountryController extends Controller
         } else {
             $currencyRate = 1.0; // USD to USD
         }
+        
+        // Get news with sentiment analysis
+        $newsData = $this->newsService->getNewsByCountryWithSentiment($country->name, 5);
+        $newsRiskScore = $this->newsService->getNewsSentimentRiskScore($country->name, 5);
 
-        // Calculate risk score
+        // Calculate risk score with real news sentiment
         $riskData = [
             'weather' => $weather,
             'inflation' => $latestInflation,
             'currency_change' => $currencyChange,
-            'news_sentiment' => 'neutral' // Default, will be enhanced later
+            'news_sentiment' => $newsRiskScore // Use numeric risk score
         ];
 
         $riskScore = $this->riskService->calculateRiskScore($code, $riskData);
@@ -150,6 +154,10 @@ class CountryController extends Controller
                 'name' => $country->currency_name,
                 'rate_to_usd' => $currencyRate,
                 'change_7d' => round($currencyChange, 2),
+            ],
+            'news' => [
+                'articles' => $newsData['articles'],
+                'sentiment' => $newsData['sentiment_analysis']
             ],
             'risk' => $riskScore,
         ]);

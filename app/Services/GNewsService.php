@@ -9,14 +9,81 @@ class GNewsService
 {
     protected $baseUrl = 'https://gnews.io/api/v4';
     protected $apiKey;
+    protected $sentimentService;
 
-    public function __construct()
+    public function __construct(SentimentAnalysisService $sentimentService)
     {
         $this->apiKey = config('services.gnews.api_key');
+        $this->sentimentService = $sentimentService;
     }
 
     /**
-     * Get news by country with database caching
+     * Get news by country with sentiment analysis
+     */
+    public function getNewsByCountryWithSentiment($countryName, $limit = 10)
+    {
+        $articles = $this->getNewsByCountry($countryName, $limit);
+        
+        if (empty($articles)) {
+            return [
+                'articles' => [],
+                'sentiment_analysis' => [
+                    'overall_sentiment' => 'neutral',
+                    'positive' => 0,
+                    'neutral' => 0,
+                    'negative' => 0,
+                    'total' => 0,
+                    'positive_percentage' => 0,
+                    'neutral_percentage' => 0,
+                    'negative_percentage' => 0
+                ]
+            ];
+        }
+        
+        // Analyze sentiment for each article
+        $analyzedArticles = [];
+        foreach ($articles as $article) {
+            $text = ($article['title'] ?? '') . ' ' . ($article['description'] ?? '');
+            $sentiment = $this->sentimentService->analyzeSentiment($text);
+            
+            $analyzedArticles[] = array_merge($article, [
+                'sentiment' => $sentiment['sentiment'],
+                'sentiment_score' => $sentiment['score'],
+                'sentiment_confidence' => $sentiment['confidence']
+            ]);
+        }
+        
+        // Get batch sentiment analysis
+        $texts = array_map(function($article) {
+            return ($article['title'] ?? '') . ' ' . ($article['description'] ?? '');
+        }, $articles);
+        
+        $batchAnalysis = $this->sentimentService->analyzeBatch($texts);
+        
+        return [
+            'articles' => $analyzedArticles,
+            'sentiment_analysis' => $batchAnalysis
+        ];
+    }
+    
+    /**
+     * Get news sentiment score for risk calculation
+     */
+    public function getNewsSentimentRiskScore($countryName, $limit = 10)
+    {
+        $newsData = $this->getNewsByCountryWithSentiment($countryName, $limit);
+        $analysis = $newsData['sentiment_analysis'];
+        
+        return $this->sentimentService->getSentimentRiskScore(
+            $analysis['overall_sentiment'],
+            $analysis['positive'],
+            $analysis['negative'],
+            $analysis['neutral']
+        );
+    }
+    
+    /**
+     * Get news by country with database caching (without sentiment)
      */
     public function getNewsByCountry($countryName, $limit = 10)
     {
