@@ -17,7 +17,7 @@ class WorldBankService
     {
         $cacheKey = "worldbank_gdp_{$countryCode}";
         
-        return Cache::remember($cacheKey, 86400, function () use ($countryCode) {
+        return Cache::remember($cacheKey, 86400, function () use ($countryCode, $cacheKey) {
             try {
                 $response = Http::withoutVerifying()->timeout(15)->get("{$this->baseUrl}/country/{$countryCode}/indicator/NY.GDP.MKTP.CD", [
                     'format' => 'json',
@@ -36,13 +36,21 @@ class WorldBankService
                         }
                     }
                     
+                    // Don't cache empty results - remove cache and return empty
+                    if (empty($result)) {
+                        Cache::forget($cacheKey);
+                        return [];
+                    }
+                    
                     return $result;
                 }
 
                 Log::error('World Bank GDP API failed', ['country' => $countryCode]);
+                Cache::forget($cacheKey); // Don't cache failures
                 return [];
             } catch (\Exception $e) {
                 Log::error('World Bank GDP API Error: ' . $e->getMessage());
+                Cache::forget($cacheKey); // Don't cache errors
                 return [];
             }
         });
@@ -55,7 +63,7 @@ class WorldBankService
     {
         $cacheKey = "worldbank_inflation_{$countryCode}";
         
-        return Cache::remember($cacheKey, 86400, function () use ($countryCode) {
+        return Cache::remember($cacheKey, 86400, function () use ($countryCode, $cacheKey) {
             try {
                 $response = Http::withoutVerifying()->timeout(15)->get("{$this->baseUrl}/country/{$countryCode}/indicator/FP.CPI.TOTL.ZG", [
                     'format' => 'json',
@@ -74,13 +82,21 @@ class WorldBankService
                         }
                     }
                     
+                    // Don't cache empty results - remove cache and return empty
+                    if (empty($result)) {
+                        Cache::forget($cacheKey);
+                        return [];
+                    }
+                    
                     return $result;
                 }
 
                 Log::error('World Bank Inflation API failed', ['country' => $countryCode]);
+                Cache::forget($cacheKey); // Don't cache failures
                 return [];
             } catch (\Exception $e) {
                 Log::error('World Bank Inflation API Error: ' . $e->getMessage());
+                Cache::forget($cacheKey); // Don't cache errors
                 return [];
             }
         });
