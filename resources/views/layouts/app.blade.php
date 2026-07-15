@@ -135,6 +135,9 @@
                 <a class="nav-link {{ request()->routeIs('country.monitor') ? 'active' : '' }}" href="{{ route('country.monitor') }}">
                     <i class="fas fa-globe"></i> Country Monitor
                 </a>
+                <a class="nav-link {{ request()->routeIs('port.map') ? 'active' : '' }}" href="{{ route('port.map') }}">
+                    <i class="fas fa-ship"></i> Port Map
+                </a>
                 <a class="nav-link" href="#">
                     <i class="fas fa-cloud-sun-rain"></i> Weather Map
                 </a>

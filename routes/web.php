@@ -31,6 +31,9 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout')->middl
 Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard.index');
     Route::get('/country-monitor', [DashboardController::class, 'countryMonitor'])->name('country.monitor');
+    Route::get('/port-map', function () {
+        return view('dashboard.port-map');
+    })->name('port.map');
 });
 
 // Admin Routes (require authentication + admin role)
