@@ -48,7 +48,7 @@ class PortController extends Controller
     {
         try {
             $port = \DB::table('ports')
-                ->join('countries', 'ports.country_code', '=', 'countries.code')
+                ->leftJoin('countries', 'ports.country_code', '=', 'countries.code')
                 ->where('ports.id', $id)
                 ->select(
                     'ports.*',

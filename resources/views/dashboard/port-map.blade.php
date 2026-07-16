@@ -111,24 +111,27 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <div id="portDetailLoading" class="text-center py-4">
-                    <div class="spinner-border" role="status"></div>
-                </div>
-                <div id="portDetailContent" style="display: none;">
+                <div id="portDetailContent">
                     <div class="row">
                         <div class="col-md-6">
                             <h6>Port Information</h6>
-                            <p><strong>Port Name:</strong> <span id="detailPortName"></span></p>
-                            <p><strong>Country:</strong> <span id="detailCountry"></span></p>
-                            <p><strong>Region:</strong> <span id="detailRegion"></span></p>
-                            <p><strong>Coordinates:</strong> <span id="detailCoords"></span></p>
+                            <p><strong>Port Name:</strong> <span id="detailPortName">-</span></p>
+                            <p><strong>Country:</strong> <span id="detailCountry">-</span></p>
+                            <p><strong>Region:</strong> <span id="detailRegion">-</span></p>
+                            <p><strong>Coordinates:</strong> <span id="detailCoords">-</span></p>
                         </div>
                         <div class="col-md-6">
                             <h6>Current Weather</h6>
-                            <p><strong>Temperature:</strong> <span id="detailTemp"></span>°C</p>
-                            <p><strong>Condition:</strong> <span id="detailCondition"></span></p>
-                            <p><strong>Wind Speed:</strong> <span id="detailWind"></span> km/h</p>
-                            <p><strong>Rainfall:</strong> <span id="detailRain"></span> mm</p>
+                            <div id="weatherLoading" class="text-center py-3">
+                                <div class="spinner-border spinner-border-sm" role="status"></div>
+                                <p class="small text-muted mt-2">Loading weather data...</p>
+                            </div>
+                            <div id="weatherContent" style="display: none;">
+                                <p><strong>Temperature:</strong> <span id="detailTemp"></span>°C</p>
+                                <p><strong>Condition:</strong> <span id="detailCondition"></span></p>
+                                <p><strong>Wind Speed:</strong> <span id="detailWind"></span> km/h</p>
+                                <p><strong>Rainfall:</strong> <span id="detailRain"></span> mm</p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -140,6 +143,8 @@
 
 @push('styles')
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
 <style>
     .leaflet-popup-content {
         min-width: 200px;
@@ -151,14 +156,33 @@
         width: 12px;
         height: 12px;
     }
+    .marker-cluster-small {
+        background-color: rgba(110, 204, 57, 0.6);
+    }
+    .marker-cluster-small div {
+        background-color: rgba(110, 204, 57, 0.8);
+    }
+    .marker-cluster-medium {
+        background-color: rgba(241, 211, 87, 0.6);
+    }
+    .marker-cluster-medium div {
+        background-color: rgba(241, 211, 87, 0.8);
+    }
+    .marker-cluster-large {
+        background-color: rgba(253, 156, 115, 0.6);
+    }
+    .marker-cluster-large div {
+        background-color: rgba(253, 156, 115, 0.8);
+    }
 </style>
 @endpush
 
 @push('scripts')
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 <script>
 let map;
-let markers = [];
+let markerClusterGroup;
 let allPorts = [];
 
 // Initialize map
@@ -169,12 +193,32 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function initMap() {
-    map = L.map('portMap').setView([20, 0], 2);
+    // Set max bounds to prevent scrolling to empty world copies
+    const worldBounds = [
+        [-90, -180], // Southwest corner
+        [90, 180]    // Northeast corner
+    ];
+    
+    map = L.map('portMap', {
+        worldCopyJump: true,  // Jump to real world when crossing dateline
+        maxBounds: worldBounds,
+        maxBoundsViscosity: 0.5  // Soft boundary
+    }).setView([20, 0], 2);
     
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors',
         maxZoom: 18,
+        noWrap: true,  // Prevent tile wrapping
     }).addTo(map);
+    
+    // Initialize marker cluster group
+    markerClusterGroup = L.markerClusterGroup({
+        chunkedLoading: true,
+        maxClusterRadius: 50,
+        spiderfyOnMaxZoom: true,
+        showCoverageOnHover: false,
+        zoomToBoundsOnClick: true
+    });
 }
 
 async function loadPorts() {
@@ -194,65 +238,118 @@ async function loadPorts() {
 
 function displayPortsOnMap(ports) {
     // Clear existing markers
-    markers.forEach(marker => map.removeLayer(marker));
-    markers = [];
+    markerClusterGroup.clearLayers();
     
     ports.forEach(port => {
         const marker = L.marker([port.latitude, port.longitude])
-            .addTo(map)
             .bindPopup(`
                 <div class="text-center">
                     <strong>${port.port_name}</strong><br>
                     <small>${port.country_name}</small><br>
+                    <small class="text-muted">${port.region}</small><br>
                     <button class="btn btn-sm btn-primary mt-2" onclick="showPortDetail(${port.id})">
                         View Details
                     </button>
                 </div>
             `);
         
-        markers.push(marker);
+        markerClusterGroup.addLayer(marker);
     });
+    
+    map.addLayer(markerClusterGroup);
 }
 
 function updateStats(ports) {
     document.getElementById('totalPorts').textContent = ports.length;
-    document.getElementById('asiaPorts').textContent = ports.filter(p => p.region === 'Asia').length;
-    document.getElementById('europePorts').textContent = ports.filter(p => p.region === 'Europe').length;
-    document.getElementById('americasPorts').textContent = ports.filter(p => p.region === 'Americas').length;
+    
+    // Count by region - handle both "North America" and "South America"
+    const asiaPorts = ports.filter(p => p.region === 'Asia').length;
+    const europePorts = ports.filter(p => p.region === 'Europe').length;
+    const americasPorts = ports.filter(p => 
+        p.region === 'North America' || p.region === 'South America' || p.region === 'Americas'
+    ).length;
+    
+    document.getElementById('asiaPorts').textContent = asiaPorts;
+    document.getElementById('europePorts').textContent = europePorts;
+    document.getElementById('americasPorts').textContent = americasPorts;
 }
 
 async function showPortDetail(portId) {
     const modal = new bootstrap.Modal(document.getElementById('portDetailModal'));
-    modal.show();
     
-    document.getElementById('portDetailLoading').style.display = 'block';
-    document.getElementById('portDetailContent').style.display = 'none';
+    // Find port data from cache (instant)
+    const port = allPorts.find(p => p.id === portId);
     
+    if (port) {
+        // Show port info immediately
+        document.getElementById('detailPortName').textContent = port.port_name;
+        document.getElementById('detailCountry').textContent = port.country_name_full || port.country_name;
+        document.getElementById('detailRegion').textContent = port.region;
+        document.getElementById('detailCoords').textContent = `${port.latitude}, ${port.longitude}`;
+        
+        // Show modal immediately
+        modal.show();
+        
+        // Show weather loading
+        document.getElementById('weatherLoading').style.display = 'block';
+        document.getElementById('weatherContent').style.display = 'none';
+        
+        // Fetch weather data in background
+        loadWeatherData(portId);
+    } else {
+        // Fallback: fetch from API if not in cache
+        modal.show();
+        try {
+            const response = await fetch(`/api/ports/${portId}`);
+            const data = await response.json();
+            
+            if (data.success) {
+                const port = data.data.port;
+                const weather = data.data.weather;
+                
+                document.getElementById('detailPortName').textContent = port.port_name;
+                document.getElementById('detailCountry').textContent = port.country_name_full || port.country_name;
+                document.getElementById('detailRegion').textContent = port.region;
+                document.getElementById('detailCoords').textContent = `${port.latitude}, ${port.longitude}`;
+                
+                displayWeatherData(weather);
+            }
+        } catch (error) {
+            console.error('Error loading port details:', error);
+            alert('Failed to load port details');
+            modal.hide();
+        }
+    }
+}
+
+async function loadWeatherData(portId) {
     try {
         const response = await fetch(`/api/ports/${portId}`);
         const data = await response.json();
         
-        if (data.success) {
-            const port = data.data.port;
-            const weather = data.data.weather;
-            
-            document.getElementById('detailPortName').textContent = port.port_name;
-            document.getElementById('detailCountry').textContent = port.country_name_full;
-            document.getElementById('detailRegion').textContent = port.region;
-            document.getElementById('detailCoords').textContent = `${port.latitude}, ${port.longitude}`;
-            document.getElementById('detailTemp').textContent = weather.temperature;
-            document.getElementById('detailCondition').textContent = weather.weather_condition;
-            document.getElementById('detailWind').textContent = weather.wind_speed;
-            document.getElementById('detailRain').textContent = weather.rainfall;
-            
-            document.getElementById('portDetailLoading').style.display = 'none';
-            document.getElementById('portDetailContent').style.display = 'block';
+        if (data.success && data.data.weather) {
+            displayWeatherData(data.data.weather);
+        } else {
+            showWeatherError();
         }
     } catch (error) {
-        console.error('Error loading port details:', error);
-        alert('Failed to load port details');
-        modal.hide();
+        console.error('Error loading weather:', error);
+        showWeatherError();
     }
+}
+
+function displayWeatherData(weather) {
+    document.getElementById('detailTemp').textContent = weather.temperature;
+    document.getElementById('detailCondition').textContent = weather.weather_condition;
+    document.getElementById('detailWind').textContent = weather.wind_speed;
+    document.getElementById('detailRain').textContent = weather.rainfall;
+    
+    document.getElementById('weatherLoading').style.display = 'none';
+    document.getElementById('weatherContent').style.display = 'block';
+}
+
+function showWeatherError() {
+    document.getElementById('weatherLoading').innerHTML = '<p class="small text-danger">Failed to load weather data</p>';
 }
 
 function setupEventListeners() {
@@ -285,7 +382,16 @@ function filterPorts() {
     let filtered = allPorts.filter(port => {
         const matchSearch = port.port_name.toLowerCase().includes(searchTerm) || 
                            port.country_name.toLowerCase().includes(searchTerm);
-        const matchRegion = !region || port.region === region;
+        
+        let matchRegion = true;
+        if (region) {
+            if (region === 'Americas') {
+                matchRegion = port.region === 'North America' || port.region === 'South America' || port.region === 'Americas';
+            } else {
+                matchRegion = port.region === region;
+            }
+        }
+        
         return matchSearch && matchRegion;
     });
     

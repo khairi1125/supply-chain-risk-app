@@ -130,12 +130,20 @@ class PortDataService
     public function getAllPortsWithCountry()
     {
         return DB::table('ports')
-            ->join('countries', 'ports.country_code', '=', 'countries.code')
+            ->leftJoin('countries', 'ports.country_code', '=', 'countries.code')
             ->select(
-                'ports.*',
+                'ports.id',
+                'ports.port_name',
+                'ports.code',
+                'ports.country_code',
+                'ports.country_name',
+                'ports.region',
+                'ports.latitude',
+                'ports.longitude',
+                'ports.port_type',
+                'ports.is_active',
                 'countries.name as country_name_full',
-                'countries.flag_url',
-                'countries.region'
+                'countries.flag_url'
             )
             ->where('ports.is_active', 1)
             ->orderBy('ports.port_name')
@@ -160,17 +168,25 @@ class PortDataService
     public function searchPorts($query)
     {
         return DB::table('ports')
-            ->join('countries', 'ports.country_code', '=', 'countries.code')
+            ->leftJoin('countries', 'ports.country_code', '=', 'countries.code')
             ->where(function($q) use ($query) {
                 $q->where('ports.port_name', 'LIKE', "%{$query}%")
+                  ->orWhere('ports.country_name', 'LIKE', "%{$query}%")
                   ->orWhere('countries.name', 'LIKE', "%{$query}%");
             })
             ->where('ports.is_active', 1)
             ->select(
-                'ports.*',
+                'ports.id',
+                'ports.port_name',
+                'ports.code',
+                'ports.country_code',
+                'ports.country_name',
+                'ports.region',
+                'ports.latitude',
+                'ports.longitude',
+                'ports.port_type',
                 'countries.name as country_name_full',
-                'countries.flag_url',
-                'countries.region'
+                'countries.flag_url'
             )
             ->limit(50)
             ->get();
