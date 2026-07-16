@@ -25,6 +25,10 @@ Route::get('/currency/{country_code}', [CurrencyController::class, 'getExchangeR
 // News endpoints
 Route::get('/news/{country_code}', [NewsController::class, 'getNews']);
 
+// Weather endpoints
+Route::get('/weather/global', [WeatherController::class, 'getGlobalWeather']);
+Route::get('/weather/{lat}/{lon}', [WeatherController::class, 'getWeatherByCoordinates']);
+
 // Port API endpoints
 Route::get('/ports', [PortController::class, 'index']);
 Route::get('/ports/search', [PortController::class, 'search']);

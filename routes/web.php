@@ -34,6 +34,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/port-map', function () {
         return view('dashboard.port-map');
     })->name('port.map');
+    Route::get('/weather-map', function () {
+        return view('dashboard.weather-map');
+    })->name('weather.map');
 });
 
 // Admin Routes (require authentication + admin role)
