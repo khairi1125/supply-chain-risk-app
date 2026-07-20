@@ -1,0 +1,72 @@
+services:
+  - type: web
+    name: supply-chain-risk
+    env: php
+    plan: free
+    buildCommand: ./build.sh
+    startCommand: "php -S 0.0.0.0:10000 -t public"
+    envVars:
+      - key: APP_NAME
+        value: Supply Chain Risk
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      - key: APP_URL
+        fromService:
+          type: web
+          name: supply-chain-risk
+          property: renderURL
+      - key: LOG_CHANNEL
+        value: stack
+      - key: LOG_LEVEL
+        value: info
+      - key: DB_CONNECTION
+        value: mysql
+      - key: DB_HOST
+        fromService:
+          type: mysql
+          name: supply-chain-db
+          property: host
+      - key: DB_PORT
+        fromService:
+          type: mysql
+          name: supply-chain-db
+          property: port
+      - key: DB_DATABASE
+        fromService:
+          type: mysql
+          name: supply-chain-db
+          property: database
+      - key: DB_USERNAME
+        fromService:
+          type: mysql
+          name: supply-chain-db
+          property: username
+      - key: DB_PASSWORD
+        fromService:
+          type: mysql
+          name: supply-chain-db
+          property: password
+      - key: SESSION_DRIVER
+        value: database
+      - key: QUEUE_CONNECTION
+        value: database
+      - key: CACHE_STORE
+        value: database
+      - key: APP_KEY
+        sync: false
+      - key: GNEWS_API_KEY
+        sync: false
+      - key: EXCHANGE_RATE_API_KEY
+        sync: false
+    routes:
+      - type: http
+        source: /
+        destination: /index.php
+
+  - type: mysql
+    name: supply-chain-db
+    plan: free
+    mysqlVersion: "8"
+    ipAllowList: []
