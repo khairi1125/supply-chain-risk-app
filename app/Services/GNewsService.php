@@ -69,11 +69,19 @@ class GNewsService
     /**
      * Get news sentiment score for risk calculation
      */
-    public function getNewsSentimentRiskScore($countryName, $limit = 10)
+    public function getNewsSentimentRiskScore($countryName, $limit = 10, $forceRefresh = false)
     {
-        $newsData = $this->getNewsByCountryWithSentiment($countryName, $limit);
+        $newsData = $this->getNewsByCountryWithSentiment($countryName, $limit, $forceRefresh);
         $analysis = $newsData['sentiment_analysis'];
         
+        return $this->getSentimentRiskScoreFromAnalysis($analysis);
+    }
+    
+    /**
+     * Calculate risk score from sentiment analysis result (avoid re-fetching)
+     */
+    public function getSentimentRiskScoreFromAnalysis($analysis)
+    {
         return $this->sentimentService->getSentimentRiskScore(
             $analysis['overall_sentiment'],
             $analysis['positive'],
@@ -84,27 +92,39 @@ class GNewsService
     
     /**
      * Get news by country with database caching (without sentiment)
+     * Cache expires after 6 hours or can be force refreshed
      */
-    public function getNewsByCountry($countryName, $limit = 10)
+    public function getNewsByCountry($countryName, $limit = 10, $forceRefresh = false)
     {
-        $query = "{$countryName} logistics OR trade OR shipping OR economy";
+        // IMPROVED QUERY: Use broader keywords for better coverage
+        // Old: "Indonesia logistics OR trade OR shipping OR economy"
+        // New: Just country name gets more results from GNews
+        $query = $countryName;
         
         // Check cache in database first (valid for 6 hours)
         // News updates every 6 hours - balance between freshness and API quota
         $countryCode = strtoupper(substr($countryName, 0, 3));
         
-        // Count how many cached articles we have for this country
+        // IMPROVEMENT: Clear cache yang lebih tua dari 6 jam
+        \DB::table('news_cache')
+            ->where('country_code', $countryCode)
+            ->where('created_at', '<', now()->subHours(6))
+            ->delete();
+        
+        // Count how many cached articles we have for this country  
         $cachedCount = \DB::table('news_cache')
             ->where('country_code', $countryCode)
             ->where('created_at', '>=', now()->subHours(6))
             ->count();
         
-        // If cache has enough articles (or more), use cache
-        if ($cachedCount >= $limit) {
+        // If cache has enough articles AND not force refresh, use cache
+        if ($cachedCount >= $limit && !$forceRefresh) {
+            Log::info("GNews: Using cached news for {$countryName} (cached {$cachedCount} articles)");
+            
             $cached = \DB::table('news_cache')
                 ->where('country_code', $countryCode)
                 ->where('created_at', '>=', now()->subHours(6))
-                ->orderBy('created_at', 'desc')
+                ->orderBy('published_at', 'desc')  // Sort by published date, not cache date
                 ->limit($limit)
                 ->get();
                 
@@ -119,7 +139,14 @@ class GNewsService
             })->toArray();
         }
         
-        // Cache doesn't have enough articles, fetch from API with requested limit
+        // Cache doesn't have enough articles OR force refresh → fetch from API
+        Log::info("GNews: Fetching FRESH news from API for {$countryName}" . ($forceRefresh ? " (force refresh)" : " (cache empty)"));
+        
+        // Clear old cache before fetching new
+        if ($forceRefresh) {
+            \DB::table('news_cache')->where('country_code', $countryCode)->delete();
+        }
+        
         return $this->searchNews($query, null, null, $limit, $countryName);
     }
 

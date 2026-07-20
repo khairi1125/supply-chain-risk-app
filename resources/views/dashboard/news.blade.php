@@ -85,7 +85,7 @@
         border-radius: 20px;
         padding: 1.75rem;
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
-        margin-bottom: 2rem;
+        margin-bottom: 3rem;
         border: 1px solid var(--gray-200);
     }
     
@@ -321,7 +321,7 @@
     </div>
 
     <!-- Filter Section -->
-    <div class="filter-section">
+    <div class="filter-section mb-5">
         <div class="row g-3">
             <div class="col-md-5">
                 <div class="input-group">
@@ -366,18 +366,18 @@
     </div>
 
     <!-- Loading State -->
-    <div id="loadingState" class="text-center py-5">
+    <div id="loadingState" class="text-center py-5 mt-4">
         <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status"></div>
         <p class="mt-3 text-muted">Loading news articles...</p>
     </div>
 
     <!-- News Grid -->
-    <div id="newsGrid" class="row" style="display: none;">
+    <div id="newsGrid" class="row mt-4" style="display: none;">
         <!-- News cards will be inserted here -->
     </div>
 
     <!-- No Results -->
-    <div id="noResults" class="alert alert-info text-center" style="display: none;">
+    <div id="noResults" class="alert alert-info text-center mt-4" style="display: none;">
         <i class="bi bi-search fs-1"></i>
         <p class="mb-0 mt-2">No news articles found matching your criteria</p>
     </div>

@@ -21,7 +21,7 @@
         </div>
         <div class="card-body">
             <div class="row g-3">
-                <div class="col-md-8">
+                <div class="col-md-6">
                     <label class="form-label">Search Query</label>
                     <input type="text" id="searchQuery" class="form-control" 
                            placeholder="E.g., supply chain, shipping, logistics, trade..." 
@@ -45,6 +45,12 @@
                         <i class="fas fa-download"></i> Fetch News
                     </button>
                 </div>
+                <div class="col-md-2">
+                    <label class="form-label">&nbsp;</label>
+                    <button id="fetchNewsFreshBtn" class="btn btn-success w-100" title="Bypass cache and get fresh results">
+                        <i class="fas fa-sync"></i> Fresh Fetch
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -54,23 +60,23 @@
         <div class="card-body">
             <h6 class="mb-3"><i class="fas fa-bolt"></i> Quick Search</h6>
             <div class="d-flex flex-wrap gap-2">
-                <button class="btn btn-sm btn-outline-primary quick-search" data-query="supply chain disruption">
-                    Supply Chain Disruption
+                <button class="btn btn-sm btn-outline-primary quick-search" data-query="supply chain">
+                    Supply Chain
                 </button>
-                <button class="btn btn-sm btn-outline-info quick-search" data-query="global trade economy">
-                    Global Trade & Economy
+                <button class="btn btn-sm btn-outline-info quick-search" data-query="trade">
+                    Trade
                 </button>
-                <button class="btn btn-sm btn-outline-warning quick-search" data-query="geopolitics international relations">
+                <button class="btn btn-sm btn-outline-warning quick-search" data-query="geopolitics">
                     Geopolitics
                 </button>
-                <button class="btn btn-sm btn-outline-danger quick-search" data-query="weather climate disaster">
-                    Weather & Climate
+                <button class="btn btn-sm btn-outline-danger quick-search" data-query="weather">
+                    Weather
                 </button>
-                <button class="btn btn-sm btn-outline-success quick-search" data-query="shipping port logistics">
-                    Shipping & Ports
+                <button class="btn btn-sm btn-outline-success quick-search" data-query="shipping">
+                    Shipping
                 </button>
-                <button class="btn btn-sm btn-outline-secondary quick-search" data-query="oil gas energy prices">
-                    Energy & Oil
+                <button class="btn btn-sm btn-outline-secondary quick-search" data-query="energy">
+                    Energy
                 </button>
             </div>
         </div>
@@ -91,7 +97,15 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0"><i class="fas fa-newspaper"></i> News Articles</h5>
-                <span id="resultsCount" class="badge bg-primary">0 articles</span>
+                <div class="d-flex gap-2 align-items-center">
+                    <button id="btnSelectAll" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-check-double"></i> Select All
+                    </button>
+                    <button id="btnImportSelected" class="btn btn-sm btn-success" style="display: none;">
+                        <i class="fas fa-download"></i> Import Selected (<span id="selectedCount">0</span>)
+                    </button>
+                    <span id="resultsCount" class="badge bg-primary">0 articles</span>
+                </div>
             </div>
             <div class="card-body">
                 <div id="newsList"></div>
@@ -134,11 +148,32 @@
         border-color: rgba(16, 185, 129, 0.4);
     }
     
+    .news-item.imported .form-check-input {
+        opacity: 0.5;
+    }
+    
     .news-title {
         font-size: 1.1rem;
         font-weight: 600;
         color: #1f2937;
         margin-bottom: 0.5rem;
+        cursor: pointer;
+        user-select: none;
+    }
+    
+    .form-check {
+        flex: 1;
+    }
+    
+    .form-check-input {
+        cursor: pointer;
+        width: 18px;
+        height: 18px;
+        margin-top: 0.15rem;
+    }
+    
+    .form-check-label {
+        cursor: pointer;
     }
     
     .news-description {
@@ -180,7 +215,7 @@ $(document).ready(function() {
         $('#fetchNewsBtn').click();
     });
     
-    // Fetch news button
+    // Fetch news button (with cache)
     $('#fetchNewsBtn').click(function() {
         const query = $('#searchQuery').val().trim();
         const limit = $('#maxResults').val();
@@ -190,7 +225,20 @@ $(document).ready(function() {
             return;
         }
         
-        fetchNews(query, limit);
+        fetchNews(query, limit, false);
+    });
+    
+    // Fresh fetch button (bypass cache)
+    $('#fetchNewsFreshBtn').click(function() {
+        const query = $('#searchQuery').val().trim();
+        const limit = $('#maxResults').val();
+        
+        if (!query) {
+            alert('Please enter a search query');
+            return;
+        }
+        
+        fetchNews(query, limit, true);
     });
     
     // Enter key on search input
@@ -199,25 +247,75 @@ $(document).ready(function() {
             $('#fetchNewsBtn').click();
         }
     });
+    
+    // Select All button
+    $('#btnSelectAll').click(function() {
+        const allChecked = $('.article-checkbox:not(:disabled)').length === $('.article-checkbox:not(:disabled):checked').length;
+        
+        if (allChecked) {
+            // Uncheck all
+            $('.article-checkbox:not(:disabled)').prop('checked', false);
+            $(this).html('<i class="fas fa-check-double"></i> Select All');
+        } else {
+            // Check all not imported
+            $('.article-checkbox:not(:disabled)').prop('checked', true);
+            $(this).html('<i class="fas fa-times"></i> Deselect All');
+        }
+        
+        updateSelectedCount();
+    });
+    
+    // Import Selected button
+    $('#btnImportSelected').click(function() {
+        const selected = $('.article-checkbox:checked');
+        
+        if (selected.length === 0) {
+            alert('Please select at least one article');
+            return;
+        }
+        
+        if (!confirm(`Import ${selected.length} selected article(s)?`)) {
+            return;
+        }
+        
+        // Import each selected article
+        selected.each(function() {
+            const index = $(this).data('index');
+            importArticle(index);
+        });
+    });
 });
 
-function fetchNews(query, limit) {
+function fetchNews(query, limit, skipCache = false) {
     // Show loading
     $('#emptyState').hide();
     $('#newsResults').hide();
     $('#loadingState').show();
+    
+    // Update button states
+    if (skipCache) {
+        $('#fetchNewsFreshBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Fetching...');
+    } else {
+        $('#fetchNewsBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Fetching...');
+    }
     
     $.ajax({
         url: '{{ route("admin.articles.fetch-news") }}',
         method: 'POST',
         data: {
             query: query,
-            limit: limit
+            limit: limit,
+            skip_cache: skipCache
         },
         success: function(response) {
             if (response.success) {
                 currentNews = response.data;
                 displayNews(currentNews);
+                
+                // Show cache status
+                if (response.cache_cleared) {
+                    showNotification('Fresh Results!', 'Cache cleared, showing fresh results from GNews API', 'success');
+                }
             } else {
                 alert('Failed to fetch news');
                 $('#loadingState').hide();
@@ -228,6 +326,11 @@ function fetchNews(query, limit) {
             alert('Error fetching news. Please try again.');
             $('#loadingState').hide();
             $('#emptyState').show();
+        },
+        complete: function() {
+            // Reset buttons
+            $('#fetchNewsBtn').prop('disabled', false).html('<i class="fas fa-download"></i> Fetch News');
+            $('#fetchNewsFreshBtn').prop('disabled', false).html('<i class="fas fa-sync"></i> Fresh Fetch');
         }
     });
 }
@@ -245,9 +348,15 @@ function displayNews(news) {
     let html = '';
     news.forEach((article, index) => {
         html += `
-            <div class="news-item" id="news-${index}">
+            <div class="news-item" id="news-${index}" data-imported="false">
                 <div class="d-flex justify-content-between align-items-start mb-2">
-                    <div class="news-title">${article.title}</div>
+                    <div class="form-check">
+                        <input class="form-check-input article-checkbox" type="checkbox" 
+                               id="checkbox-${index}" data-index="${index}">
+                        <label class="form-check-label news-title ms-2" for="checkbox-${index}">
+                            ${article.title}
+                        </label>
+                    </div>
                     <button class="btn btn-sm btn-success import-btn" 
                             data-index="${index}"
                             data-title="${escapeHtml(article.title)}"
@@ -266,14 +375,6 @@ function displayNews(news) {
                     <a href="${article.url}" target="_blank" class="text-primary">
                         <i class="fas fa-external-link-alt"></i> Read Original
                     </a>
-                    <span>•</span>
-                    <span>Category:</span>
-                    <select class="form-select form-select-sm d-inline-block" style="width: auto;" data-index="${index}">
-                        <option value="logistics">Logistics</option>
-                        <option value="economy">Economy</option>
-                        <option value="geopolitics">Geopolitics</option>
-                        <option value="weather">Weather</option>
-                    </select>
                 </div>
             </div>
         `;
@@ -285,17 +386,21 @@ function displayNews(news) {
     // Attach import handlers
     $('.import-btn').click(function() {
         const index = $(this).data('index');
-        const category = $(`.form-select[data-index="${index}"]`).val();
-        importArticle(index, category);
+        importArticle(index);
     });
+    
+    // Attach checkbox change handlers
+    $('.article-checkbox').change(updateSelectedCount);
 }
 
 function importArticle(index, category) {
     const article = currentNews[index];
     const button = $(`.import-btn[data-index="${index}"]`);
+    const checkbox = $(`#checkbox-${index}`);
     
-    // Disable button
+    // Disable button and checkbox
     button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Importing...');
+    checkbox.prop('disabled', true);
     
     $.ajax({
         url: '{{ route("admin.articles.import-news") }}',
@@ -305,32 +410,55 @@ function importArticle(index, category) {
             description: article.description,
             content: article.description,  // Full content
             url: article.url,
-            source: article.source,
-            category: category
+            source: article.source
         },
         success: function(response) {
             if (response.success) {
                 // Mark as imported
-                $(`#news-${index}`).addClass('imported');
+                $(`#news-${index}`).addClass('imported').attr('data-imported', 'true');
                 button.removeClass('btn-success').addClass('btn-secondary')
                       .html('<i class="fas fa-check"></i> Imported')
                       .prop('disabled', true);
+                checkbox.prop('checked', false).prop('disabled', true);
                 
                 // Show success notification with sentiment
                 const sentimentInfo = response.sentiment ? 
                     ` (Sentiment: ${response.sentiment.sentiment} - ${response.sentiment.confidence}%)` : '';
                 showNotification('Success!', response.message + sentimentInfo, 'success');
+                
+                updateSelectedCount();
             } else {
                 alert(response.message);
                 button.prop('disabled', false).html('<i class="fas fa-download"></i> Import');
+                checkbox.prop('disabled', false);
             }
         },
         error: function(xhr) {
             const message = xhr.responseJSON?.message || 'Failed to import article';
             alert(message);
             button.prop('disabled', false).html('<i class="fas fa-download"></i> Import');
+            checkbox.prop('disabled', false);
         }
     });
+}
+
+function updateSelectedCount() {
+    const selected = $('.article-checkbox:checked:not(:disabled)').length;
+    $('#selectedCount').text(selected);
+    
+    if (selected > 0) {
+        $('#btnImportSelected').show();
+    } else {
+        $('#btnImportSelected').hide();
+    }
+    
+    // Update Select All button text
+    const total = $('.article-checkbox:not(:disabled)').length;
+    if (selected === total && total > 0) {
+        $('#btnSelectAll').html('<i class="fas fa-times"></i> Deselect All');
+    } else {
+        $('#btnSelectAll').html('<i class="fas fa-check-double"></i> Select All');
+    }
 }
 
 function escapeHtml(text) {

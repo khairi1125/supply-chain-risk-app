@@ -277,13 +277,30 @@ class ArticleController extends Controller
     {
         $query = $request->get('query', 'supply chain logistics trade');
         $limit = $request->get('limit', 20);
+        $skipCache = $request->get('skip_cache', false); // New parameter
         
         try {
-            $news = $this->gnewsService->searchNews($query, null, null, $limit);
+            // Add timestamp to query to get different results
+            $enhancedQuery = $query;
+            
+            // If skip_cache, clear the cache for this query
+            if ($skipCache) {
+                $cacheKeys = [
+                    'gnews_search_' . md5($query . null . null . $limit),
+                    'gnews_search_' . md5($enhancedQuery . null . null . $limit),
+                ];
+                foreach ($cacheKeys as $key) {
+                    \Illuminate\Support\Facades\Cache::forget($key);
+                }
+            }
+            
+            $news = $this->gnewsService->searchNews($enhancedQuery, null, null, $limit);
             
             return response()->json([
                 'success' => true,
-                'data' => $news
+                'data' => $news,
+                'query_used' => $enhancedQuery,
+                'cache_cleared' => $skipCache
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -304,7 +321,6 @@ class ArticleController extends Controller
             'content' => 'required|string',
             'url' => 'required|url',
             'source' => 'nullable|string',
-            'category' => 'required|in:logistics,economy,geopolitics,weather',
         ]);
         
         // Check if article with same URL already exists
@@ -321,6 +337,9 @@ class ArticleController extends Controller
         $text = $validated['title'] . ' ' . $validated['description'];
         $sentiment = $sentimentService->analyzeSentiment($text);
         
+        // Auto-categorize based on keywords in title and description
+        $category = $this->categorizeArticle($validated['title'], $validated['description']);
+        
         // Create article content with source attribution
         $content = "<p><strong>Source:</strong> {$validated['source']}</p>\n\n";
         $content .= "<p>" . nl2br(htmlspecialchars($validated['content'])) . "</p>\n\n";
@@ -333,7 +352,7 @@ class ArticleController extends Controller
             'url' => $validated['url'],
             'source' => $validated['source'] ?? 'Unknown',
             'content' => $content,
-            'category' => $validated['category'],
+            'category' => $category,
             'sentiment' => $sentiment['sentiment'],
             'sentiment_score' => $sentiment['score'],
             'sentiment_confidence' => $sentiment['confidence'],
@@ -345,7 +364,7 @@ class ArticleController extends Controller
         $this->activityLogService->log([
             'user_id' => Auth::id(),
             'action' => 'article_imported',
-            'description' => "Imported news article: {$article->title} (Sentiment: {$sentiment['sentiment']})",
+            'description' => "Imported news article: {$article->title} (Sentiment: {$sentiment['sentiment']}, Category: {$category})",
         ]);
         
         return response()->json([
@@ -354,6 +373,39 @@ class ArticleController extends Controller
             'article_id' => $article->id,
             'sentiment' => $sentiment
         ]);
+    }
+    
+    /**
+     * Auto-categorize article based on keywords
+     */
+    private function categorizeArticle($title, $description)
+    {
+        $text = strtolower($title . ' ' . $description);
+        
+        // Define keywords for each category
+        $categories = [
+            'logistics' => ['shipping', 'logistics', 'port', 'cargo', 'freight', 'transport', 'supply chain', 'delivery', 'warehouse'],
+            'economy' => ['economy', 'trade', 'tariff', 'commerce', 'business', 'market', 'economic', 'gdp', 'inflation', 'finance'],
+            'geopolitics' => ['geopolitics', 'diplomatic', 'sanctions', 'conflict', 'tension', 'political', 'relations', 'government', 'policy'],
+            'weather' => ['weather', 'climate', 'disaster', 'storm', 'flood', 'typhoon', 'hurricane', 'rain', 'drought', 'temperature'],
+        ];
+        
+        // Count keywords for each category
+        $scores = [];
+        foreach ($categories as $cat => $keywords) {
+            $score = 0;
+            foreach ($keywords as $keyword) {
+                $score += substr_count($text, $keyword);
+            }
+            $scores[$cat] = $score;
+        }
+        
+        // Get category with highest score
+        arsort($scores); // Sort by score descending
+        $topCategory = key($scores); // Get first key (highest score)
+        
+        // Only use the top category if it has a score > 0, otherwise default to 'logistics'
+        return ($scores[$topCategory] > 0) ? $topCategory : 'logistics';
     }
     
     /**

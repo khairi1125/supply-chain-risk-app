@@ -113,7 +113,7 @@ foreach ($articles as $article) {
     
     /**
      * Search news with sentiment analysis (for News Dashboard)
-     * OPTIMIZED VERSION: Fast loading with caching
+     * OPTIMIZED VERSION: Fast loading with caching from database
      */
     public function searchNews(Request $request)
     {

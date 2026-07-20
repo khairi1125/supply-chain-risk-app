@@ -75,12 +75,26 @@
 
     <!-- Articles Table -->
     <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Articles List</h5>
+            <div class="d-flex gap-2" id="bulkActions" style="display: none !important;">
+                <button class="btn btn-sm btn-success" id="btnPublishSelected">
+                    <i class="fas fa-check-circle"></i> Publish Selected (<span id="selectedCount">0</span>)
+                </button>
+                <button class="btn btn-sm btn-danger" id="btnDeleteSelected">
+                    <i class="fas fa-trash"></i> Delete Selected (<span id="selectedCountDelete">0</span>)
+                </button>
+            </div>
+        </div>
         <div class="card-body">
             @if($articles->count() > 0)
                 <div class="table-responsive">
                     <table class="table table-hover align-middle">
                         <thead>
                             <tr>
+                                <th style="width: 40px;">
+                                    <input type="checkbox" class="form-check-input" id="selectAll">
+                                </th>
                                 <th>ID</th>
                                 <th>Title</th>
                                 <th>Author</th>
@@ -93,6 +107,11 @@
                         <tbody>
                             @foreach($articles as $article)
                             <tr>
+                                <td>
+                                    <input type="checkbox" class="form-check-input article-checkbox" 
+                                           data-id="{{ $article->id }}" 
+                                           data-status="{{ $article->status }}">
+                                </td>
                                 <td>{{ $article->id }}</td>
                                 <td>
                                     <strong>{{ $article->title }}</strong>
@@ -225,13 +244,163 @@
         border-color: rgba(124, 58, 237, 0.2);
         color: #6b7280;
     }
+    
+    .form-check-input {
+        cursor: pointer;
+        width: 18px;
+        height: 18px;
+    }
+    
+    #selectAll {
+        cursor: pointer;
+        width: 20px;
+        height: 20px;
+    }
+    
+    #bulkActions {
+        animation: fadeIn 0.3s ease;
+    }
+    
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
 </style>
 @endpush
 
 @push('scripts')
 <script>
 $(document).ready(function() {
-    // Toggle Status
+    // Select All checkbox
+    $('#selectAll').change(function() {
+        $('.article-checkbox').prop('checked', $(this).is(':checked'));
+        updateBulkActions();
+    });
+    
+    // Individual checkbox change
+    $('.article-checkbox').change(function() {
+        updateBulkActions();
+        
+        // Update Select All checkbox state
+        const total = $('.article-checkbox').length;
+        const checked = $('.article-checkbox:checked').length;
+        $('#selectAll').prop('checked', total === checked);
+    });
+    
+    // Update bulk action buttons visibility and count
+    function updateBulkActions() {
+        const checked = $('.article-checkbox:checked').length;
+        
+        if (checked > 0) {
+            $('#bulkActions').show();
+            $('#selectedCount').text(checked);
+            $('#selectedCountDelete').text(checked);
+        } else {
+            $('#bulkActions').hide();
+        }
+    }
+    
+    // Publish Selected
+    $('#btnPublishSelected').click(function() {
+        const selectedIds = [];
+        $('.article-checkbox:checked').each(function() {
+            selectedIds.push($(this).data('id'));
+        });
+        
+        if (selectedIds.length === 0) {
+            alert('Please select at least one article');
+            return;
+        }
+        
+        if (!confirm(`Publish ${selectedIds.length} selected article(s)?`)) {
+            return;
+        }
+        
+        // Show loading
+        $(this).prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Publishing...');
+        
+        // Publish each article
+        let completed = 0;
+        selectedIds.forEach(function(id) {
+            $.ajax({
+                url: `/admin/articles/${id}/toggle-status`,
+                method: 'POST',
+                success: function(response) {
+                    completed++;
+                    if (completed === selectedIds.length) {
+                        alert('Articles published successfully!');
+                        location.reload();
+                    }
+                },
+                error: function() {
+                    completed++;
+                    if (completed === selectedIds.length) {
+                        alert('Some articles failed to publish. Please refresh the page.');
+                        location.reload();
+                    }
+                }
+            });
+        });
+    });
+    
+    // Delete Selected
+    $('#btnDeleteSelected').click(function() {
+        const selectedIds = [];
+        $('.article-checkbox:checked').each(function() {
+            selectedIds.push($(this).data('id'));
+        });
+        
+        if (selectedIds.length === 0) {
+            alert('Please select at least one article');
+            return;
+        }
+        
+        if (!confirm(`⚠️ DELETE ${selectedIds.length} article(s)? This action CANNOT be undone!`)) {
+            return;
+        }
+        
+        // Double confirm for safety
+        if (!confirm('Are you ABSOLUTELY SURE? This will permanently delete the selected articles.')) {
+            return;
+        }
+        
+        // Show loading
+        $(this).prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Deleting...');
+        
+        // Delete each article
+        let completed = 0;
+        selectedIds.forEach(function(id) {
+            $.ajax({
+                url: `/admin/articles/${id}`,
+                method: 'POST',
+                data: {
+                    _method: 'DELETE'
+                },
+                success: function(response) {
+                    completed++;
+                    if (completed === selectedIds.length) {
+                        alert('Articles deleted successfully!');
+                        location.reload();
+                    }
+                },
+                error: function() {
+                    completed++;
+                    if (completed === selectedIds.length) {
+                        alert('Some articles failed to delete. Please refresh the page.');
+                        location.reload();
+                    }
+                }
+            });
+        });
+    });
+    
+    // Toggle Status (individual)
     $('.toggle-status').click(function() {
         const articleId = $(this).data('id');
         const currentStatus = $(this).data('status');
@@ -262,7 +431,7 @@ $(document).ready(function() {
         }
     });
     
-    // Delete Article
+    // Delete Article (individual)
     $('.delete-btn').click(function() {
         const articleId = $(this).data('id');
         const articleTitle = $(this).data('title');

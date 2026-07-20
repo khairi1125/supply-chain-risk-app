@@ -839,32 +839,32 @@
             <i class="fas fa-ship-fast"></i> Supply Chain Risk
         </div>
             
-            <nav class="nav flex-column mt-4">
-                <a class="nav-link {{ request()->routeIs('dashboard.index') ? 'active' : '' }}" href="{{ route('dashboard.index') }}">
-                    <i class="fas fa-dashboard"></i> Dashboard
-                </a>
-                <a class="nav-link {{ request()->routeIs('country.monitor') ? 'active' : '' }}" href="{{ route('country.monitor') }}">
-                    <i class="fas fa-globe"></i> Country Monitor
-                </a>
-                <a class="nav-link {{ request()->routeIs('port.map') ? 'active' : '' }}" href="{{ route('port.map') }}">
-                    <i class="fas fa-ship"></i> Port Map
-                </a>
-                <a class="nav-link {{ request()->routeIs('weather.map') ? 'active' : '' }}" href="{{ route('weather.map') }}">
-                    <i class="fas fa-cloud-sun-rain"></i> Weather Map
-                </a>
-                <a class="nav-link {{ request()->routeIs('currency') ? 'active' : '' }}" href="{{ route('currency') }}">
-                    <i class="fas fa-coins"></i> Currency
-                </a>
-                <a class="nav-link {{ request()->routeIs('news') ? 'active' : '' }}" href="{{ route('news') }}">
-                    <i class="bi bi-newspaper"></i> News Intelligence
-                </a>
-                <a class="nav-link {{ request()->routeIs('compare') ? 'active' : '' }}" href="{{ route('compare') }}">
-                    <i class="fas fa-code-compare"></i> Compare Countries
-                </a>
-                <a class="nav-link {{ request()->routeIs('watchlist.index') ? 'active' : '' }}" href="{{ route('watchlist.index') }}">
-                    <i class="fas fa-star"></i> My Watchlist
-                </a>
-        </div>
+        <nav class="nav flex-column mt-4">
+            <a class="nav-link {{ request()->routeIs('dashboard.index') ? 'active' : '' }}" href="{{ route('dashboard.index') }}">
+                <i class="fas fa-dashboard"></i> Dashboard
+            </a>
+            <a class="nav-link {{ request()->routeIs('country.monitor') ? 'active' : '' }}" href="{{ route('country.monitor') }}">
+                <i class="fas fa-globe"></i> Country Monitor
+            </a>
+            <a class="nav-link {{ request()->routeIs('port.map') ? 'active' : '' }}" href="{{ route('port.map') }}">
+                <i class="fas fa-ship"></i> Port Map
+            </a>
+            <a class="nav-link {{ request()->routeIs('weather.map') ? 'active' : '' }}" href="{{ route('weather.map') }}">
+                <i class="fas fa-cloud-sun-rain"></i> Weather Map
+            </a>
+            <a class="nav-link {{ request()->routeIs('currency') ? 'active' : '' }}" href="{{ route('currency') }}">
+                <i class="fas fa-coins"></i> Currency
+            </a>
+            <a class="nav-link {{ request()->routeIs('news') ? 'active' : '' }}" href="{{ route('news') }}">
+                <i class="bi bi-newspaper"></i> News Intelligence
+            </a>
+            <a class="nav-link {{ request()->routeIs('compare') ? 'active' : '' }}" href="{{ route('compare') }}">
+                <i class="fas fa-code-compare"></i> Compare Countries
+            </a>
+            <a class="nav-link {{ request()->routeIs('watchlist.index') ? 'active' : '' }}" href="{{ route('watchlist.index') }}">
+                <i class="fas fa-star"></i> My Watchlist
+            </a>
+        </nav>
     </div>
     
     <!-- Main Content Wrapper (with left margin for fixed sidebar) -->

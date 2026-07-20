@@ -625,7 +625,12 @@
                             <div class="card">
                                 <div class="card-header bg-light d-flex justify-content-between align-items-center">
                                     <h6 class="mb-0">📰 Recent News & Sentiment Analysis</h6>
-                                    <div id="sentimentBadge"></div>
+                                    <div>
+                                        <button class="btn btn-sm btn-outline-primary me-2" id="btnRefreshNews" onclick="refreshNews()">
+                                            <i class="bi bi-arrow-clockwise"></i> Refresh News
+                                        </button>
+                                        <span id="sentimentBadge"></span>
+                                    </div>
                                 </div>
                                 <div class="card-body">
                                     <!-- Sentiment Summary -->
@@ -693,6 +698,7 @@
 <script>
 let gdpChartInstance = null;
 let inflationChartInstance = null;
+let currentCountryCode = null; // Store current country code for refresh
 
 // Load risk scores for all countries
 document.addEventListener('DOMContentLoaded', function() {
@@ -757,7 +763,8 @@ document.querySelectorAll('.view-detail-btn').forEach(btn => {
 });
 
 // Show country detail modal
-async function showCountryDetail(code) {
+async function showCountryDetail(code, forceRefresh = false) {
+    currentCountryCode = code; // Store for refresh
     const modal = new bootstrap.Modal(document.getElementById('countryDetailModal'));
     modal.show();
     
@@ -766,7 +773,11 @@ async function showCountryDetail(code) {
     document.getElementById('modalContent').style.display = 'none';
     
     try {
-        const response = await fetch(`/api/countries/${code}`);
+        // Add refresh parameter if force refresh
+        const url = `/api/countries/${code}${forceRefresh ? '?refresh=true' : ''}`;
+        console.log('Fetching:', url);
+        
+        const response = await fetch(url);
         const data = await response.json();
         
         // Populate modal
@@ -983,5 +994,75 @@ function renderNews(newsData) {
     
     articlesList.innerHTML = html;
 }
+
+// Refresh news function - ADDED FOR REAL-TIME NEWS UPDATE
+async function refreshNews() {
+    console.log('🔄 Refresh News clicked');
+    console.log('Current Country Code:', currentCountryCode);
+    
+    if (!currentCountryCode) {
+        alert('No country selected');
+        return;
+    }
+    
+    const btn = document.getElementById('btnRefreshNews');
+    if (!btn) {
+        console.error('Button btnRefreshNews not found!');
+        return;
+    }
+    
+    const originalHTML = btn.innerHTML;
+    
+    // Show loading state
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Refreshing...';
+    
+    document.getElementById('newsArticlesList').innerHTML = `
+        <div class="text-center text-muted py-4">
+            <div class="spinner-border spinner-border-sm" role="status"></div>
+            <p class="mt-2">Fetching latest news from GNews API...</p>
+        </div>
+    `;
+    
+    const url = `/api/countries/${currentCountryCode}?refresh=true`;
+    console.log('📡 Fetching URL:', url);
+    
+    try {
+        // Force refresh - will fetch from GNews API
+        const response = await fetch(url);
+        console.log('📥 Response status:', response.status);
+        
+        const data = await response.json();
+        console.log('📰 News data:', data.news);
+        
+        // Update news section
+        renderNews(data.news);
+        
+        // Show success message
+        const badge = document.getElementById('sentimentBadge');
+        const temp = badge.innerHTML;
+        badge.innerHTML = '<span class="badge bg-success ms-2"><i class="bi bi-check-circle"></i> Updated!</span>';
+        
+        console.log('✅ News refreshed successfully!');
+        
+        // Reset after 3 seconds
+        setTimeout(() => {
+            badge.innerHTML = temp;
+        }, 3000);
+        
+    } catch (error) {
+        console.error('❌ Error refreshing news:', error);
+        document.getElementById('newsArticlesList').innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle"></i> Failed to refresh news. Please try again.
+            </div>
+        `;
+    } finally {
+        // Restore button
+        btn.disabled = false;
+        btn.innerHTML = originalHTML;
+    }
+}
 </script>
 @endpush
+}

@@ -16,3 +16,9 @@ Artisan::command('inspire', function () {
 // Generate/update alert logs every hour
 \Illuminate\Support\Facades\Schedule::command('alerts:generate')->hourly();
 
+// 🚀 NEW: Auto-refresh news for all countries every 6 hours
+\Illuminate\Support\Facades\Schedule::command('news:refresh-all')
+    ->everySixHours()  // Run every 6 hours
+    ->withoutOverlapping()  // Prevent multiple instances running
+    ->runInBackground()  // Run in background
+    ->appendOutputTo(storage_path('logs/news-refresh.log'));  // Log output

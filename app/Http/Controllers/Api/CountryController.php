@@ -69,9 +69,9 @@ class CountryController extends Controller
 
     /**
      * Get detailed country information
-     * GET /api/countries/{code}
+     * GET /api/countries/{code}?refresh=true (untuk force refresh news)
      */
-    public function show($code)
+    public function show($code, Request $request)
     {
         // Get country basic info
         $country = DB::table('countries')->where('code', $code)->first();
@@ -116,8 +116,16 @@ class CountryController extends Controller
         }
         
         // Get news with sentiment analysis
-        $newsData = $this->newsService->getNewsByCountryWithSentiment($country->name, 5);
-        $newsRiskScore = $this->newsService->getNewsSentimentRiskScore($country->name, 5);
+        // Support force refresh parameter
+        $forceRefresh = $request->query('refresh', false) === 'true' || $request->query('refresh', false) === true;
+        \Log::info("CountryController: Force refresh = " . ($forceRefresh ? 'TRUE' : 'FALSE'));
+        
+        // IMPORTANT: Fetch news ONCE and reuse for both sentiment + risk calculation
+        $newsData = $this->newsService->getNewsByCountryWithSentiment($country->name, 5, $forceRefresh);
+        
+        // Calculate risk from the SAME news data (avoid double API call)
+        $sentimentAnalysis = $newsData['sentiment_analysis'];
+        $newsRiskScore = $this->newsService->getSentimentRiskScoreFromAnalysis($sentimentAnalysis);
 
         // Calculate risk score with real news sentiment
         $riskData = [
