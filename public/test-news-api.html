@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test News API</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .loading { color: blue; }
+        .error { color: red; }
+        .success { color: green; }
+        .article { border: 1px solid #ddd; padding: 10px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>Test News API</h1>
+    <button onclick="testAPI()">Load News</button>
+    <div id="result"></div>
+
+    <script>
+        async function testAPI() {
+            const result = document.getElementById('result');
+            result.innerHTML = '<p class="loading">Loading...</p>';
+            
+            try {
+                const response = await fetch('/api/news/search?limit=10');
+                const data = await response.json();
+                
+                if (data.success) {
+                    let html = `<p class="success">✅ Success! Found ${data.data.articles.length} articles</p>`;
+                    
+                    data.data.articles.forEach(article => {
+                        html += `
+                            <div class="article">
+                                <h3>${article.title}</h3>
+                                <p>${article.description || 'No description'}</p>
+                                <p><strong>Source:</strong> ${article.source || 'Unknown'}</p>
+                                <p><strong>Sentiment:</strong> ${article.sentiment || 'neutral'}</p>
+                                <p><strong>URL:</strong> ${article.url || 'No URL'}</p>
+                            </div>
+                        `;
+                    });
+                    
+                    result.innerHTML = html;
+                } else {
+                    result.innerHTML = `<p class="error">❌ API returned error: ${data.message}</p>`;
+                }
+            } catch (error) {
+                result.innerHTML = `<p class="error">❌ Error: ${error.message}</p>`;
+                console.error('Full error:', error);
+            }
+        }
+        
+        // Auto-load on page load
+        testAPI();
+    </script>
+</body>
+</html>

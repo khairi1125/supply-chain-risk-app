@@ -49,8 +49,11 @@
         .login-header h1 {
             font-size: 1.8rem;
             font-weight: 600;
-            color: #333;
             margin-bottom: 5px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
         
         .login-header p {

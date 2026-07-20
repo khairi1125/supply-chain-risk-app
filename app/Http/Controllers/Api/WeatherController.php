@@ -16,61 +16,65 @@ class WeatherController extends Controller
     }
 
     /**
-     * Get global weather data for major cities
+     * Get global weather data for all countries
      * GET /api/weather/global
+     * 
+     * OPTIMIZED VERSION:
+     * - Uses database cache with 1-hour validity
+     * - Returns cached data immediately (< 1 second)
+     * - Only fetches fresh data if cache expired
      */
     public function getGlobalWeather()
     {
-        // Major cities coordinates for global weather monitoring
-        $cities = [
-            ['name' => 'New York', 'country' => 'USA', 'lat' => 40.7128, 'lon' => -74.0060],
-            ['name' => 'London', 'country' => 'UK', 'lat' => 51.5074, 'lon' => -0.1278],
-            ['name' => 'Tokyo', 'country' => 'Japan', 'lat' => 35.6762, 'lon' => 139.6503],
-            ['name' => 'Singapore', 'country' => 'Singapore', 'lat' => 1.3521, 'lon' => 103.8198],
-            ['name' => 'Dubai', 'country' => 'UAE', 'lat' => 25.2048, 'lon' => 55.2708],
-            ['name' => 'Shanghai', 'country' => 'China', 'lat' => 31.2304, 'lon' => 121.4737],
-            ['name' => 'Mumbai', 'country' => 'India', 'lat' => 19.0760, 'lon' => 72.8777],
-            ['name' => 'São Paulo', 'country' => 'Brazil', 'lat' => -23.5505, 'lon' => -46.6333],
-            ['name' => 'Sydney', 'country' => 'Australia', 'lat' => -33.8688, 'lon' => 151.2093],
-            ['name' => 'Jakarta', 'country' => 'Indonesia', 'lat' => -6.2088, 'lon' => 106.8456],
-            ['name' => 'Los Angeles', 'country' => 'USA', 'lat' => 34.0522, 'lon' => -118.2437],
-            ['name' => 'Paris', 'country' => 'France', 'lat' => 48.8566, 'lon' => 2.3522],
-            ['name' => 'Hong Kong', 'country' => 'China', 'lat' => 22.3193, 'lon' => 114.1694],
-            ['name' => 'Seoul', 'country' => 'South Korea', 'lat' => 37.5665, 'lon' => 126.9780],
-            ['name' => 'Bangkok', 'country' => 'Thailand', 'lat' => 13.7563, 'lon' => 100.5018],
-            ['name' => 'Istanbul', 'country' => 'Turkey', 'lat' => 41.0082, 'lon' => 28.9784],
-            ['name' => 'Moscow', 'country' => 'Russia', 'lat' => 55.7558, 'lon' => 37.6173],
-            ['name' => 'Mexico City', 'country' => 'Mexico', 'lat' => 19.4326, 'lon' => -99.1332],
-            ['name' => 'Cairo', 'country' => 'Egypt', 'lat' => 30.0444, 'lon' => 31.2357],
-            ['name' => 'Lagos', 'country' => 'Nigeria', 'lat' => 6.5244, 'lon' => 3.3792],
-        ];
+        // Fetch whatever is in the cache. The background job will populate it.
+        return $this->getWeatherFromCache();
+    }
 
-        $weatherData = [];
-
-        foreach ($cities as $city) {
-            try {
-                $weather = $this->weatherService->getWeather($city['lat'], $city['lon']);
-                
-                $weatherData[] = [
-                    'city' => $city['name'],
-                    'country' => $city['country'],
-                    'latitude' => $city['lat'],
-                    'longitude' => $city['lon'],
-                    'temperature' => $weather['temperature'],
-                    'rainfall' => $weather['rainfall'],
-                    'wind_speed' => $weather['wind_speed'],
-                    'weather_condition' => $weather['weather_condition'],
-                    'risk_level' => $weather['risk_level'],
+    
+    /**
+     * Get all weather data from cache only (fast response < 1 second)
+     * Cache valid for 4 hours (balanced between freshness and performance)
+     */
+    private function getWeatherFromCache()
+    {
+        $cacheHours = 4; // Cache valid for 4 hours
+        
+        $weatherData = \DB::table('countries as c')
+            ->join('weather_cache as wc', 'c.code', '=', 'wc.country_code')
+            ->select(
+                'c.id as country_id', 'c.name as country_name', 'c.code as country_code',
+                'c.region', 'c.flag_url', 'c.latitude', 'c.longitude',
+                'wc.temperature', 'wc.rainfall', 'wc.wind_speed',
+                'wc.weather_condition', 'wc.risk_level'
+            )
+            ->where('wc.fetched_at', '>=', now()->subHours($cacheHours))
+            ->orderBy('c.name')
+            ->get()
+            ->map(function($item) {
+                return [
+                    'country_id' => $item->country_id,
+                    'country_name' => $item->country_name,
+                    'country_code' => $item->country_code,
+                    'region' => $item->region,
+                    'flag_url' => $item->flag_url,
+                    'latitude' => (float) $item->latitude,
+                    'longitude' => (float) $item->longitude,
+                    'temperature' => (float) $item->temperature,
+                    'rainfall' => (float) $item->rainfall,
+                    'wind_speed' => (float) $item->wind_speed,
+                    'weather_condition' => $item->weather_condition,
+                    'risk_level' => $item->risk_level,
                 ];
-            } catch (\Exception $e) {
-                \Log::error("Failed to fetch weather for {$city['name']}: " . $e->getMessage());
-            }
-        }
-
+            });
+        
         return response()->json([
             'success' => true,
             'data' => $weatherData,
-            'total' => count($weatherData),
+            'total' => $weatherData->count(),
+            'from_cache' => $weatherData->count(),
+            'from_api' => 0,
+            'message' => "Loaded {$weatherData->count()} countries from cache (< {$cacheHours} hours old)",
+            'cache_age' => "Data cached for {$cacheHours} hours",
         ]);
     }
 

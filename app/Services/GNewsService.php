@@ -89,14 +89,25 @@ class GNewsService
     {
         $query = "{$countryName} logistics OR trade OR shipping OR economy";
         
-        // Check cache in database first (valid for 2 hours)
-        $cached = \DB::table('news_cache')
-            ->where('country_code', strtoupper(substr($countryName, 0, 3)))
-            ->where('created_at', '>=', now()->subHours(2))
-            ->limit($limit)
-            ->get();
-            
-        if ($cached->isNotEmpty()) {
+        // Check cache in database first (valid for 6 hours)
+        // News updates every 6 hours - balance between freshness and API quota
+        $countryCode = strtoupper(substr($countryName, 0, 3));
+        
+        // Count how many cached articles we have for this country
+        $cachedCount = \DB::table('news_cache')
+            ->where('country_code', $countryCode)
+            ->where('created_at', '>=', now()->subHours(6))
+            ->count();
+        
+        // If cache has enough articles (or more), use cache
+        if ($cachedCount >= $limit) {
+            $cached = \DB::table('news_cache')
+                ->where('country_code', $countryCode)
+                ->where('created_at', '>=', now()->subHours(6))
+                ->orderBy('created_at', 'desc')
+                ->limit($limit)
+                ->get();
+                
             return $cached->map(function ($item) {
                 return [
                     'title' => $item->title,
@@ -108,6 +119,7 @@ class GNewsService
             })->toArray();
         }
         
+        // Cache doesn't have enough articles, fetch from API with requested limit
         return $this->searchNews($query, null, null, $limit, $countryName);
     }
 
@@ -126,6 +138,16 @@ class GNewsService
     public function searchNews($query, $country = null, $category = null, $max = 10, $cacheCountryName = null)
     {
         try {
+            // Create cache key for API results (30 menit cache untuk admin fetches)
+            $cacheKey = 'gnews_search_' . md5($query . $country . $category . $max);
+            
+            // Check if we have cached API results (30 minutes TTL)
+            $cachedResults = \Illuminate\Support\Facades\Cache::get($cacheKey);
+            if ($cachedResults) {
+                Log::info('GNews API: Using cached results for query: ' . $query);
+                return $cachedResults;
+            }
+            
             if (empty($this->apiKey) || $this->apiKey === 'your_key_here' || strlen($this->apiKey) < 10) {
                 Log::warning('GNews API: Using mock data (invalid or missing API key)');
                 return $this->getMockNews($query);
@@ -135,7 +157,8 @@ class GNewsService
                 'q' => $query,
                 'apikey' => $this->apiKey,
                 'max' => $max,
-                'lang' => 'en'
+                'lang' => 'en',
+                'sortby' => 'publishedAt'
             ];
 
             if ($country) {
@@ -146,6 +169,7 @@ class GNewsService
                 $params['category'] = $category;
             }
 
+            Log::info('GNews API: Fetching news for query: ' . $query);
             $response = Http::withOptions(['verify' => false])->timeout(15)->get("{$this->baseUrl}/search", $params);
 
             if ($response->successful()) {
@@ -159,12 +183,8 @@ class GNewsService
                 
                 $articles = $data['articles'] ?? [];
                 
-                // Cache articles to database
-                if ($cacheCountryName && !empty($articles)) {
-                    $this->cacheNews($articles, $cacheCountryName);
-                }
-                
-                return collect($articles)->map(function ($article) {
+                // Map articles to standard format
+                $formattedArticles = collect($articles)->map(function ($article) {
                     return [
                         'title' => $article['title'] ?? '',
                         'description' => $article['description'] ?? '',
@@ -173,6 +193,16 @@ class GNewsService
                         'published_at' => $article['publishedAt'] ?? now()->toIso8601String(),
                     ];
                 })->toArray();
+                
+                // Cache API results for 30 minutes to prevent excessive API calls
+                \Illuminate\Support\Facades\Cache::put($cacheKey, $formattedArticles, 30 * 60);
+                
+                // Also cache articles to database for long-term storage
+                if ($cacheCountryName && !empty($formattedArticles)) {
+                    $this->cacheNews($articles, $cacheCountryName);
+                }
+                
+                return $formattedArticles;
             }
 
             Log::error('GNews API failed', ['status' => $response->status()]);
@@ -221,6 +251,12 @@ class GNewsService
         try {
             $countryCode = strtoupper(substr($countryName, 0, 3));
             
+            // Clear old cache for this country first (avoid duplicates)
+            \DB::table('news_cache')
+                ->where('country_code', $countryCode)
+                ->where('created_at', '<', now()->subHours(6))
+                ->delete();
+            
             foreach ($articles as $article) {
                 \DB::table('news_cache')->insert([
                     'country_code' => $countryCode,
@@ -229,7 +265,7 @@ class GNewsService
                     'url' => $article['url'] ?? '',
                     'source' => $article['source']['name'] ?? 'Unknown',
                     'sentiment' => 'neutral', // Will be analyzed later
-                    'published_at' => $article['publishedAt'] ?? now(),
+                    'published_at' => isset($article['publishedAt']) ? \Carbon\Carbon::parse($article['publishedAt'])->format('Y-m-d H:i:s') : now()->format('Y-m-d H:i:s'),
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);

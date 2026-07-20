@@ -62,7 +62,7 @@
         margin-bottom: 0.5rem;
         position: relative;
         z-index: 1;
-        color: white !important;
+        color: white;
     }
 
     .welcome-card p {

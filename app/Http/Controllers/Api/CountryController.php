@@ -52,9 +52,9 @@ class CountryController extends Controller
             $query->where('region', $request->region);
         }
 
-        // Paginate results
-        $perPage = $request->get('per_page', 20);
-        $countries = $query->paginate($perPage);
+        // Paginate results - allow up to 500 countries for compare page
+        $perPage = min($request->get('per_page', 50), 500); // Max 500 untuk menghindari overload
+        $countries = $query->orderBy('name')->paginate($perPage);
 
         // Add risk scores to each country
         $countries->getCollection()->transform(function ($country) {

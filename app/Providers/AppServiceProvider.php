@@ -11,7 +11,20 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Register WatchlistService
+        $this->app->singleton(\App\Services\WatchlistService::class, function ($app) {
+            return new \App\Services\WatchlistService(
+                $app->make(\App\Services\RiskScoringService::class),
+                $app->make(\App\Services\OpenMeteoService::class),
+                $app->make(\App\Services\ExchangeRateService::class),
+                $app->make(\App\Services\ActivityLogService::class)
+            );
+        });
+
+        // Register ActivityLogService
+        $this->app->singleton(\App\Services\ActivityLogService::class, function ($app) {
+            return new \App\Services\ActivityLogService();
+        });
     }
 
     /**

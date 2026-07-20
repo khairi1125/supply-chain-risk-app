@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
 {
@@ -13,6 +15,51 @@ class AuthController extends Controller
             return redirect()->route('dashboard.index');
         }
         return view('auth.login');
+    }
+    
+    public function showRegister()
+    {
+        if (Auth::check()) {
+            return redirect()->route('dashboard.index');
+        }
+        return view('auth.register');
+    }
+    
+    public function register(Request $request)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users',
+            'password' => 'required|string|min:8|confirmed',
+        ]);
+
+        $user = User::create([
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'password' => Hash::make($validated['password']),
+            'role' => 'user', // Default role
+            'is_active' => true,
+            'email_verified_at' => now(), // Auto verify for now
+        ]);
+
+        // Log activity
+        \DB::table('activity_logs')->insert([
+            'user_id' => $user->id,
+            'action' => 'user_registered',
+            'description' => "New user registered: {$user->email}",
+            'ip_address' => $request->ip(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        // Auto login after registration
+        Auth::login($user);
+        
+        // Update last login
+        $user->update(['last_login' => now()]);
+
+        return redirect()->route('dashboard.index')
+            ->with('success', 'Registration successful! Welcome to Supply Chain Risk Intelligence.');
     }
 
     public function login(Request $request)

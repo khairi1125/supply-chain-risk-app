@@ -17,7 +17,7 @@ class OpenMeteoService
         // Check cache in database first
         $cached = \DB::table('weather_cache')
             ->where('country_code', $this->getCountryCodeFromCoords($latitude, $longitude))
-            ->where('fetched_at', '>=', now()->subHour())
+            ->where('fetched_at', '>=', now()->subHours(4))
             ->first();
             
         if ($cached) {
@@ -60,6 +60,70 @@ class OpenMeteoService
                 
                 // Save to cache
                 $this->cacheWeather($latitude, $longitude, $result);
+                
+                return $result;
+            }
+
+            Log::error('OpenMeteo API failed', ['status' => $response->status()]);
+            return $this->getMockWeather();
+        } catch (\Exception $e) {
+            Log::error('OpenMeteo API Error: ' . $e->getMessage());
+            return $this->getMockWeather();
+        }
+    }
+    
+    /**
+     * Get current weather with country code directly (OPTIMIZED for batch operations)
+     * This avoids the expensive getCountryCodeFromCoords() query
+     */
+    public function getWeatherWithCountryCode($latitude, $longitude, $countryCode)
+    {
+        // Check cache in database first using provided country code
+        $cached = \DB::table('weather_cache')
+            ->where('country_code', $countryCode)
+            ->where('fetched_at', '>=', now()->subHours(4))
+            ->first();
+            
+        if ($cached) {
+            return [
+                'temperature' => (float) $cached->temperature,
+                'rainfall' => (float) $cached->rainfall,
+                'wind_speed' => (float) $cached->wind_speed,
+                'weather_condition' => $cached->weather_condition,
+                'risk_level' => $cached->risk_level,
+            ];
+        }
+        
+        try {
+            $response = Http::withOptions(['verify' => false])->timeout(10)->get("{$this->baseUrl}/forecast", [
+                'latitude' => $latitude,
+                'longitude' => $longitude,
+                'current' => 'temperature_2m,precipitation,windspeed_10m,weathercode',
+                'timezone' => 'auto'
+            ]);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                $current = $data['current'] ?? [];
+                
+                $temperature = $current['temperature_2m'] ?? 0;
+                $rainfall = $current['precipitation'] ?? 0;
+                $windSpeed = $current['windspeed_10m'] ?? 0;
+                $weatherCode = $current['weathercode'] ?? 0;
+                
+                $weatherCondition = $this->mapWeatherCode($weatherCode);
+                $riskLevel = $this->calculateRiskLevel($windSpeed, $rainfall);
+                
+                $result = [
+                    'temperature' => $temperature,
+                    'rainfall' => $rainfall,
+                    'wind_speed' => $windSpeed,
+                    'weather_condition' => $weatherCondition,
+                    'risk_level' => $riskLevel,
+                ];
+                
+                // Save to cache with provided country code
+                $this->cacheWeatherWithCode($countryCode, $result);
                 
                 return $result;
             }
@@ -151,6 +215,30 @@ class OpenMeteoService
         try {
             $countryCode = $this->getCountryCodeFromCoords($latitude, $longitude);
             
+            \DB::table('weather_cache')->updateOrInsert(
+                ['country_code' => $countryCode],
+                [
+                    'temperature' => $data['temperature'],
+                    'rainfall' => $data['rainfall'],
+                    'wind_speed' => $data['wind_speed'],
+                    'weather_condition' => $data['weather_condition'],
+                    'risk_level' => $data['risk_level'],
+                    'fetched_at' => now(),
+                    'updated_at' => now(),
+                ]
+            );
+        } catch (\Exception $e) {
+            Log::error('Failed to cache weather: ' . $e->getMessage());
+        }
+    }
+    
+    /**
+     * Cache weather data to database with provided country code (OPTIMIZED)
+     * This avoids the expensive getCountryCodeFromCoords() query
+     */
+    private function cacheWeatherWithCode($countryCode, $data)
+    {
+        try {
             \DB::table('weather_cache')->updateOrInsert(
                 ['country_code' => $countryCode],
                 [
