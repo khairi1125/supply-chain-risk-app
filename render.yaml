@@ -5,6 +5,7 @@ services:
     plan: free
     buildCommand: ./build.sh
     startCommand: "php -S 0.0.0.0:10000 -t public"
+    healthCheckPath: /
     envVars:
       - key: APP_NAME
         value: Supply Chain Risk
@@ -29,10 +30,7 @@ services:
           name: supply-chain-db
           property: host
       - key: DB_PORT
-        fromService:
-          type: mysql
-          name: supply-chain-db
-          property: port
+        value: "3306"
       - key: DB_DATABASE
         fromService:
           type: mysql
@@ -60,10 +58,6 @@ services:
         sync: false
       - key: EXCHANGE_RATE_API_KEY
         sync: false
-    routes:
-      - type: http
-        source: /
-        destination: /index.php
 
   - type: mysql
     name: supply-chain-db
