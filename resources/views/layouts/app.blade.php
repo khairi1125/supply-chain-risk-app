@@ -138,7 +138,7 @@
                 <a class="nav-link {{ request()->routeIs('port.map') ? 'active' : '' }}" href="{{ route('port.map') }}">
                     <i class="fas fa-ship"></i> Port Map
                 </a>
-                <a class="nav-link" href="#">
+                <a class="nav-link {{ request()->routeIs('weather.map') ? 'active' : '' }}" href="{{ route('weather.map') }}">
                     <i class="fas fa-cloud-sun-rain"></i> Weather Map
                 </a>
                 <a class="nav-link" href="#">
@@ -146,9 +146,6 @@
                 </a>
                 <a class="nav-link" href="#">
                     <i class="fas fa-newspaper"></i> News
-                </a>
-                <a class="nav-link" href="#">
-                    <i class="fas fa-anchor"></i> Port Map
                 </a>
                 <a class="nav-link" href="#">
                     <i class="fas fa-code-compare"></i> Compare Countries

@@ -42,9 +42,15 @@
 
     <!-- Map View -->
     <div id="mapView">
-        <div class="card">
-            <div class="card-body p-0">
-                <div id="portMap" style="height: 600px; width: 100%;"></div>
+        <div class="card" id="portMapCard">
+            <div class="card-body p-0 position-relative">
+                <!-- Fullscreen Toggle Button -->
+                <button id="portMapFullscreenBtn" class="btn btn-light btn-sm position-absolute" 
+                        style="top: 10px; right: 10px; z-index: 1000; box-shadow: 0 2px 4px rgba(0,0,0,0.2);" 
+                        title="Toggle Fullscreen">
+                    <i class="bi bi-arrows-fullscreen" id="portMapFullscreenIcon"></i>
+                </button>
+                <div id="portMap" style="height: calc(100vh - 280px); min-height: 500px; width: 100%;"></div>
             </div>
         </div>
     </div>
@@ -149,6 +155,55 @@
     .leaflet-popup-content {
         min-width: 200px;
     }
+    
+    /* Fix popup text colors for better readability - FORCED */
+    .leaflet-popup-content-wrapper {
+        background-color: #1e293b !important;
+        color: #ffffff !important;
+    }
+    
+    .leaflet-popup-content {
+        color: #ffffff !important;
+    }
+    
+    .leaflet-popup-content strong {
+        color: #ffffff !important;
+    }
+    
+    .leaflet-popup-content small {
+        color: #e2e8f0 !important;
+    }
+    
+    .leaflet-popup-content .text-muted {
+        color: #cbd5e1 !important;
+    }
+    
+    .leaflet-popup-tip {
+        background-color: #1e293b !important;
+    }
+    
+    /* Additional specificity for custom popup */
+    .custom-popup .leaflet-popup-content-wrapper {
+        background-color: #1e293b !important;
+    }
+    
+    .custom-popup .leaflet-popup-content {
+        color: #ffffff !important;
+    }
+    
+    .custom-popup .leaflet-popup-tip {
+        background-color: #1e293b !important;
+    }
+    
+    /* Force all text elements inside popup to be white */
+    .leaflet-popup-content * {
+        color: #ffffff !important;
+    }
+    
+    .leaflet-popup-content small {
+        color: #e2e8f0 !important;
+    }
+    
     .port-marker {
         background-color: #007bff;
         border: 2px solid white;
@@ -160,19 +215,74 @@
         background-color: rgba(110, 204, 57, 0.6);
     }
     .marker-cluster-small div {
-        background-color: rgba(110, 204, 57, 0.8);
+        background-color: rgba(110, 204, 57, 0.8) !important;
+        color: #000000 !important;
+        font-weight: bold !important;
     }
     .marker-cluster-medium {
         background-color: rgba(241, 211, 87, 0.6);
     }
     .marker-cluster-medium div {
-        background-color: rgba(241, 211, 87, 0.8);
+        background-color: rgba(241, 211, 87, 0.8) !important;
+        color: #000000 !important;
+        font-weight: bold !important;
     }
     .marker-cluster-large {
         background-color: rgba(253, 156, 115, 0.6);
     }
     .marker-cluster-large div {
-        background-color: rgba(253, 156, 115, 0.8);
+        background-color: rgba(253, 156, 115, 0.8) !important;
+        color: #000000 !important;
+        font-weight: bold !important;
+    }
+    /* Force text color on all marker clusters */
+    .marker-cluster span {
+        color: #000000 !important;
+        font-weight: bold !important;
+    }
+    
+    /* Fullscreen mode */
+    #portMapCard.map-fullscreen {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        z-index: 99999 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border-radius: 0 !important;
+        border: none !important;
+        max-width: 100vw !important;
+    }
+    
+    #portMapCard.map-fullscreen .card-body {
+        height: 100vh !important;
+        width: 100vw !important;
+        border-radius: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        max-width: 100vw !important;
+    }
+    
+    #portMapCard.map-fullscreen #portMap {
+        height: 100vh !important;
+        width: 100vw !important;
+        max-width: 100vw !important;
+    }
+    
+    #portMapCard.map-fullscreen #portMapFullscreenBtn {
+        top: 20px !important;
+        right: 20px !important;
+        z-index: 100000 !important;
+    }
+    
+    /* Force container to allow overflow */
+    body:has(#portMapCard.map-fullscreen) .container-fluid {
+        overflow: visible !important;
+        max-width: none !important;
     }
 </style>
 @endpush
@@ -193,31 +303,39 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function initMap() {
-    // Set max bounds to prevent scrolling to empty world copies
-    const worldBounds = [
-        [-90, -180], // Southwest corner
-        [90, 180]    // Northeast corner
-    ];
-    
     map = L.map('portMap', {
         worldCopyJump: true,  // Jump to real world when crossing dateline
-        maxBounds: worldBounds,
-        maxBoundsViscosity: 0.5  // Soft boundary
     }).setView([20, 0], 2);
     
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors',
         maxZoom: 18,
-        noWrap: true,  // Prevent tile wrapping
     }).addTo(map);
     
-    // Initialize marker cluster group
+    // Initialize marker cluster group with custom icon creation
     markerClusterGroup = L.markerClusterGroup({
         chunkedLoading: true,
         maxClusterRadius: 50,
         spiderfyOnMaxZoom: true,
         showCoverageOnHover: false,
-        zoomToBoundsOnClick: true
+        zoomToBoundsOnClick: true,
+        iconCreateFunction: function(cluster) {
+            var childCount = cluster.getChildCount();
+            var c = ' marker-cluster-';
+            if (childCount < 10) {
+                c += 'small';
+            } else if (childCount < 100) {
+                c += 'medium';
+            } else {
+                c += 'large';
+            }
+            
+            return new L.DivIcon({ 
+                html: '<div style="color: #000000 !important; font-weight: bold;"><span style="color: #000000 !important;">' + childCount + '</span></div>', 
+                className: 'marker-cluster' + c, 
+                iconSize: new L.Point(40, 40) 
+            });
+        }
     });
 }
 
@@ -243,15 +361,17 @@ function displayPortsOnMap(ports) {
     ports.forEach(port => {
         const marker = L.marker([port.latitude, port.longitude])
             .bindPopup(`
-                <div class="text-center">
-                    <strong>${port.port_name}</strong><br>
-                    <small>${port.country_name}</small><br>
-                    <small class="text-muted">${port.region}</small><br>
+                <div class="text-center" style="color: #ffffff !important;">
+                    <strong style="color: #ffffff !important;">${port.port_name}</strong><br>
+                    <small style="color: #e2e8f0 !important;">${port.country_name}</small><br>
+                    <small style="color: #cbd5e1 !important;">${port.region}</small><br>
                     <button class="btn btn-sm btn-primary mt-2" onclick="showPortDetail(${port.id})">
                         View Details
                     </button>
                 </div>
-            `);
+            `, {
+                className: 'custom-popup'
+            });
         
         markerClusterGroup.addLayer(marker);
     });
@@ -353,8 +473,16 @@ function showWeatherError() {
 }
 
 function setupEventListeners() {
-    // Search
-    document.getElementById('searchPort').addEventListener('input', filterPorts);
+    // Search with Enter key to redirect
+    const searchInput = document.getElementById('searchPort');
+    searchInput.addEventListener('input', filterPorts);
+    searchInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            redirectToSearchLocation();
+        }
+    });
+    
     document.getElementById('filterRegion').addEventListener('change', filterPorts);
     
     // View toggle
@@ -373,6 +501,53 @@ function setupEventListeners() {
         document.getElementById('viewMap').classList.remove('active');
         renderPortList(allPorts);
     });
+    
+    // Fullscreen toggle
+    document.getElementById('portMapFullscreenBtn').addEventListener('click', togglePortMapFullscreen);
+}
+
+function togglePortMapFullscreen() {
+    const mapCard = document.getElementById('portMapCard');
+    const icon = document.getElementById('portMapFullscreenIcon');
+    
+    // Get all container elements to hide
+    const header = document.querySelector('.row.mb-4'); // Title row
+    const searchRow = document.querySelector('.row.mb-3'); // Search & filters
+    const statsRow = document.querySelector('.row.mt-3'); // Stats cards at bottom
+    
+    console.log('Toggling port map fullscreen...', mapCard.classList.contains('map-fullscreen'));
+    
+    if (mapCard.classList.contains('map-fullscreen')) {
+        // Exit fullscreen
+        mapCard.classList.remove('map-fullscreen');
+        icon.className = 'bi bi-arrows-fullscreen';
+        document.body.style.overflow = '';
+        
+        // Show hidden elements
+        if (header) header.style.display = '';
+        if (searchRow) searchRow.style.display = '';
+        if (statsRow) statsRow.style.display = '';
+        
+        console.log('Exited fullscreen');
+    } else {
+        // Enter fullscreen
+        mapCard.classList.add('map-fullscreen');
+        icon.className = 'bi bi-fullscreen-exit';
+        document.body.style.overflow = 'hidden';
+        
+        // Hide elements
+        if (header) header.style.display = 'none';
+        if (searchRow) searchRow.style.display = 'none';
+        if (statsRow) statsRow.style.display = 'none';
+        
+        console.log('Entered fullscreen');
+    }
+    
+    // Refresh map to fit new size
+    setTimeout(() => {
+        map.invalidateSize();
+        console.log('Port map size invalidated');
+    }, 100);
 }
 
 function filterPorts() {
@@ -400,6 +575,110 @@ function filterPorts() {
     if (document.getElementById('listView').style.display !== 'none') {
         renderPortList(filtered);
     }
+}
+
+function redirectToSearchLocation() {
+    const searchTerm = document.getElementById('searchPort').value.trim().toLowerCase();
+    
+    if (!searchTerm) {
+        alert('Please enter a port name or country name to search');
+        return;
+    }
+    
+    // Switch to map view if in list view
+    if (document.getElementById('listView').style.display !== 'none') {
+        document.getElementById('viewMap').click();
+    }
+    
+    // Find exact port match first
+    let exactPort = allPorts.find(port => 
+        port.port_name.toLowerCase() === searchTerm
+    );
+    
+    if (exactPort) {
+        // Zoom to exact port
+        map.setView([exactPort.latitude, exactPort.longitude], 10, {
+            animate: true,
+            duration: 1.5
+        });
+        
+        // Open popup for the port
+        setTimeout(() => {
+            markerClusterGroup.eachLayer(marker => {
+                const latlng = marker.getLatLng();
+                if (latlng.lat === exactPort.latitude && latlng.lng === exactPort.longitude) {
+                    marker.openPopup();
+                }
+            });
+        }, 1600);
+        
+        return;
+    }
+    
+    // Find partial port match
+    let port = allPorts.find(port => 
+        port.port_name.toLowerCase().includes(searchTerm)
+    );
+    
+    if (port) {
+        // Zoom to port
+        map.setView([port.latitude, port.longitude], 10, {
+            animate: true,
+            duration: 1.5
+        });
+        
+        // Open popup for the port
+        setTimeout(() => {
+            markerClusterGroup.eachLayer(marker => {
+                const latlng = marker.getLatLng();
+                if (latlng.lat === port.latitude && latlng.lng === port.longitude) {
+                    marker.openPopup();
+                }
+            });
+        }, 1600);
+        
+        return;
+    }
+    
+    // Find country match
+    let countryPorts = allPorts.filter(port => 
+        port.country_name.toLowerCase().includes(searchTerm)
+    );
+    
+    if (countryPorts.length > 0) {
+        // Calculate center of all ports in the country
+        let avgLat = countryPorts.reduce((sum, p) => sum + p.latitude, 0) / countryPorts.length;
+        let avgLng = countryPorts.reduce((sum, p) => sum + p.longitude, 0) / countryPorts.length;
+        
+        // Determine zoom level based on number of ports
+        let zoomLevel = countryPorts.length === 1 ? 10 : 6;
+        
+        // Zoom to country center
+        map.setView([avgLat, avgLng], zoomLevel, {
+            animate: true,
+            duration: 1.5
+        });
+        
+        // Show notification
+        const notification = document.createElement('div');
+        notification.className = 'alert alert-info alert-dismissible fade show position-fixed';
+        notification.style.cssText = 'top: 20px; right: 20px; z-index: 10000; max-width: 400px;';
+        notification.innerHTML = `
+            <i class="bi bi-info-circle"></i> 
+            Found ${countryPorts.length} port${countryPorts.length > 1 ? 's' : ''} in <strong>${countryPorts[0].country_name}</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            notification.remove();
+        }, 5000);
+        
+        return;
+    }
+    
+    // No match found
+    alert(`No ports or countries found matching "${searchTerm}". Please try a different search term.`);
 }
 
 function renderPortList(ports) {

@@ -162,11 +162,13 @@
                 </button>
             </form>
             
-            <div class="text-center mt-4">
-                <small class="text-muted">
-                    <i class="fas fa-info-circle"></i> 
-                    Demo: admin@supply.com / user@supply.com (password: admin123 / user123)
-                </small>
+            <div class="text-center mt-3">
+                <p class="mb-0">
+                    Don't have an account? 
+                    <a href="{{ route('register') }}" class="text-decoration-none fw-bold">
+                        <i class="fas fa-user-plus"></i> Register here
+                    </a>
+                </p>
             </div>
         </div>
     </div>

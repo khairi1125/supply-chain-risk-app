@@ -3,86 +3,437 @@
 @section('title', 'Dashboard - Supply Chain Risk Intelligence')
 @section('page-title', 'Dashboard')
 
+@push('styles')
+<style>
+    /* Modern Dashboard Styles */
+    :root {
+        --primary-gradient: linear-gradient(135deg, #667eea 0%, #ff0000ff 100%);
+        --success-gradient: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
+        --warning-gradient: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+        --danger-gradient: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
+        --info-gradient: linear-gradient(135deg, #a1c4fd 0%, #c2e9cb 100%);
+        --card-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        --card-shadow-hover: 0 15px 40px rgba(0, 0, 0, 0.15);
+    }
+
+    body {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background-attachment: fixed;
+    }
+
+    .dashboard-container {
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 20px;
+        padding: 2rem;
+        box-shadow: var(--card-shadow);
+    }
+
+    /* Welcome Card */
+    .welcome-card {
+        background: var(--primary-gradient);
+        color: white;
+        border-radius: 20px;
+        padding: 2rem;
+        box-shadow: var(--card-shadow);
+        border: none;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .welcome-card::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+        animation: pulse 15s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% { transform: scale(1); opacity: 0.5; }
+        50% { transform: scale(1.1); opacity: 0.8; }
+    }
+
+    .welcome-card h2 {
+        font-size: 2rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        position: relative;
+        z-index: 1;
+        color: white !important;
+    }
+
+    .welcome-card p {
+        font-size: 1.1rem;
+        opacity: 0.9;
+        position: relative;
+        z-index: 1;
+        color: white !important;
+    }
+
+    /* Stat Cards */
+    .stat-card {
+        border-radius: 20px;
+        padding: 1.5rem;
+        border: none;
+        box-shadow: var(--card-shadow);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .stat-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 100%);
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-10px);
+        box-shadow: var(--card-shadow-hover);
+    }
+
+    .stat-card:hover::before {
+        opacity: 1;
+    }
+
+    .stat-card-1 {
+        background: var(--primary-gradient);
+        color: white !important;
+    }
+
+    .stat-card-2 {
+        background: var(--success-gradient);
+        color: white !important;
+    }
+
+    .stat-card-3 {
+        background: var(--warning-gradient);
+        color: white !important;
+    }
+
+    .stat-card-4 {
+        background: var(--info-gradient);
+        color: white !important;
+    }
+
+    .stat-card h6 {
+        font-size: 0.875rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 0.5rem;
+        opacity: 0.9;
+        color: white !important;
+    }
+
+    .stat-card h2 {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin: 0;
+        color: white !important;
+    }
+
+    .stat-card i {
+        font-size: 3rem;
+        opacity: 0.3;
+        color: white !important;
+    }
+
+    /* Chart Cards */
+    .chart-card {
+        border-radius: 20px;
+        border: none;
+        box-shadow: var(--card-shadow);
+        transition: all 0.3s ease;
+        background: white;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .chart-card:hover {
+        box-shadow: var(--card-shadow-hover);
+    }
+
+    .chart-card .card-header {
+        background: transparent;
+        border: none;
+        padding: 1.5rem 1.5rem 1rem;
+    }
+
+    .chart-card .card-header h5 {
+        font-weight: 700;
+        color: #2d3748;
+        margin: 0;
+    }
+
+    .chart-card .card-body {
+        padding: 1.5rem;
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* Alert Card */
+    .alert-card {
+        border-radius: 20px;
+        border: none;
+        box-shadow: var(--card-shadow);
+        background: white;
+        transition: all 0.3s ease;
+    }
+
+    .alert-card:hover {
+        box-shadow: var(--card-shadow-hover);
+    }
+
+    .alert-card .card-header {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        color: white;
+        border: none;
+        border-radius: 20px 20px 0 0;
+        padding: 1.25rem 1.5rem;
+    }
+
+    .alert-card .card-header h5 {
+        font-weight: 700;
+        margin: 0;
+    }
+
+    .alert-item {
+        border-radius: 15px;
+        margin-bottom: 0.75rem;
+        border: 2px solid transparent;
+        padding: 1.25rem;
+        transition: all 0.3s ease;
+        background: white;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
+
+    .alert-item:hover {
+        transform: translateX(5px);
+        box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        border-color: #667eea;
+    }
+
+    .alert-item.border-danger { border-left: 4px solid #f5576c !important; }
+    .alert-item.border-warning { border-left: 4px solid #fcb69f !important; }
+    .alert-item.border-info { border-left: 4px solid #a1c4fd !important; }
+    .alert-item.border-success { border-left: 4px solid #84fab0 !important; }
+
+    .alert-item h6 {
+        font-weight: 700;
+        color: #2d3748;
+        margin-bottom: 0.5rem;
+    }
+
+    .alert-item .badge {
+        font-weight: 600;
+        padding: 0.35rem 0.75rem;
+        border-radius: 10px;
+    }
+
+    /* Risk Countries Card */
+    .risk-countries-card {
+        border-radius: 20px;
+        border: none;
+        box-shadow: var(--card-shadow);
+        background: white;
+        transition: all 0.3s ease;
+    }
+
+    .risk-countries-card:hover {
+        box-shadow: var(--card-shadow-hover);
+    }
+
+    .risk-countries-card .card-header {
+        background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
+        color: white;
+        border: none;
+        border-radius: 20px 20px 0 0;
+        padding: 1.25rem 1.5rem;
+    }
+
+    .risk-countries-card .card-header h5 {
+        font-weight: 700;
+        margin: 0;
+    }
+
+    .risk-countries-card .table {
+        margin: 0;
+    }
+
+    .risk-countries-card .table thead th {
+        background: #f7fafc;
+        color: #4a5568;
+        font-weight: 700;
+        text-transform: uppercase;
+        font-size: 0.75rem;
+        letter-spacing: 1px;
+        border: none;
+        padding: 1rem;
+    }
+
+    .risk-countries-card .table tbody tr {
+        transition: all 0.3s ease;
+    }
+
+    .risk-countries-card .table tbody tr:hover {
+        background: #f7fafc;
+        transform: scale(1.02);
+    }
+
+    .risk-countries-card .table tbody td {
+        padding: 1rem;
+        vertical-align: middle;
+        border-color: #e2e8f0;
+    }
+
+    /* No alerts message */
+    .no-alerts {
+        padding: 3rem 2rem;
+        text-align: center;
+        color: #718096;
+    }
+
+    .no-alerts i {
+        font-size: 4rem;
+        color: #84fab0;
+        margin-bottom: 1rem;
+    }
+
+    /* Card footer */
+    .card-footer {
+        background: #f7fafc;
+        border: none;
+        border-radius: 0 0 20px 20px;
+        padding: 1rem 1.5rem;
+    }
+
+    /* Scroll container */
+    .scroll-container {
+        max-height: 500px;
+        overflow-y: auto;
+        padding-right: 0.5rem;
+    }
+
+    .scroll-container::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    .scroll-container::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 10px;
+    }
+
+    .scroll-container::-webkit-scrollbar-thumb {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 10px;
+    }
+
+    .scroll-container::-webkit-scrollbar-thumb:hover {
+        background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .dashboard-container {
+            padding: 1rem;
+            border-radius: 15px;
+        }
+
+        .stat-card h2 {
+            font-size: 2rem;
+        }
+
+        .welcome-card h2 {
+            font-size: 1.5rem;
+        }
+    }
+</style>
+@endpush
+
 @section('content')
-<div class="container-fluid">
+<div class="container-fluid dashboard-container">
     <!-- Welcome Section -->
     <div class="row mb-4">
         <div class="col-12">
-            <div class="card">
-                <div class="card-body">
-                    <h2 class="mb-3">
-                        <i class="fas fa-wave-square text-primary"></i> 
-                        Welcome back, {{ auth()->user()->name }}!
-                    </h2>
-                    <p class="text-muted mb-0">
-                        Monitor global supply chain risks in real-time with data from multiple sources.
-                    </p>
-                </div>
+            <div class="welcome-card">
+                <h2>
+                    <i class="fas fa-hand-sparkles me-2"></i> 
+                    Welcome back, {{ auth()->user()->name }}!
+                </h2>
+                <p class="mb-0">
+                    <i class="fas fa-chart-line me-2"></i>
+                    Monitor global supply chain risks in real-time with data from multiple sources.
+                </p>
             </div>
         </div>
     </div>
     
     <!-- Statistics Cards -->
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card bg-primary text-white">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h6 class="mb-0">Countries Monitored</h6>
-                            <h2 class="mb-0 mt-2">{{ $stats['total_countries'] }}</h2>
-                        </div>
-                        <div>
-                            <i class="fas fa-globe fa-3x opacity-50"></i>
-                        </div>
+    <div class="row mb-4 g-4">
+        <div class="col-lg-3 col-md-6">
+            <div class="stat-card stat-card-1">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6>Countries Monitored</h6>
+                        <h2>{{ $stats['total_countries'] }}</h2>
+                    </div>
+                    <div>
+                        <i class="fas fa-globe"></i>
                     </div>
                 </div>
             </div>
         </div>
         
-        <div class="col-md-3">
-            <div class="card bg-success text-white">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h6 class="mb-0">Active Ports</h6>
-                            <h2 class="mb-0 mt-2">{{ $stats['total_ports'] }}</h2>
-                        </div>
-                        <div>
-                            <i class="fas fa-anchor fa-3x opacity-50"></i>
-                        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="stat-card stat-card-2">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6>Active Ports</h6>
+                        <h2>{{ $stats['total_ports'] }}</h2>
+                    </div>
+                    <div>
+                        <i class="fas fa-anchor"></i>
                     </div>
                 </div>
             </div>
         </div>
         
-        <div class="col-md-3">
-            <div class="card bg-warning text-white">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h6 class="mb-0">Risk Alerts</h6>
-                            <h2 class="mb-0 mt-2">{{ $stats['high_risk_countries'] }}</h2>
-                        </div>
-                        <div>
-                            <i class="fas fa-exclamation-triangle fa-3x opacity-50"></i>
-                        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="stat-card stat-card-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6>Risk Alerts</h6>
+                        <h2>{{ $stats['high_risk_countries'] }}</h2>
+                    </div>
+                    <div>
+                        <i class="fas fa-exclamation-triangle"></i>
                     </div>
                 </div>
             </div>
         </div>
         
-        <div class="col-md-3">
-            <div class="card bg-info text-white">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h6 class="mb-0">News Updates</h6>
-                            <h2 class="mb-0 mt-2">{{ $stats['total_news'] }}</h2>
-                        </div>
-                        <div>
-                            <i class="fas fa-newspaper fa-3x opacity-50"></i>
-                        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="stat-card stat-card-4">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6>News Updates</h6>
+                        <h2>{{ $stats['total_news'] }}</h2>
+                    </div>
+                    <div>
+                        <i class="fas fa-newspaper"></i>
                     </div>
                 </div>
             </div>
@@ -90,26 +441,26 @@
     </div>
     
     <!-- Charts Section -->
-    <div class="row mb-4">
-        <div class="col-md-8">
-            <div class="card">
-                <div class="card-header bg-white">
-                    <h5 class="mb-0">
-                        <i class="fas fa-chart-line text-primary"></i> 
+    <div class="row mb-4 g-4">
+        <div class="col-lg-8">
+            <div class="chart-card">
+                <div class="card-header">
+                    <h5>
+                        <i class="fas fa-chart-line text-primary me-2"></i> 
                         Global Risk Trends (Last 30 Days)
                     </h5>
                 </div>
                 <div class="card-body">
-                    <canvas id="riskTrendChart" height="80"></canvas>
+                    <canvas id="riskTrendChart" height="120"></canvas>
                 </div>
             </div>
         </div>
         
-        <div class="col-md-4">
-            <div class="card">
-                <div class="card-header bg-white">
-                    <h5 class="mb-0">
-                        <i class="fas fa-chart-pie text-success"></i> 
+        <div class="col-lg-4">
+            <div class="chart-card">
+                <div class="card-header">
+                    <h5>
+                        <i class="fas fa-chart-pie text-success me-2"></i> 
                         Risk Distribution
                     </h5>
                 </div>
@@ -120,77 +471,100 @@
         </div>
     </div>
     
-    <!-- Recent News & High Risk Countries -->
-    <div class="row">
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header bg-white">
+    <!-- Recent News & Risk Alerts -->
+    <div class="row g-4">
+        <div class="col-lg-6">
+            <div class="alert-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">
-                        <i class="fas fa-newspaper text-info"></i> 
-                        Recent News
+                        <i class="fas fa-bell me-2"></i> 
+                        Risk Alerts
                     </h5>
+                    <span class="badge bg-white text-danger fw-bold">{{ count($riskAlerts) }}</span>
                 </div>
-                <div class="card-body">
-                    <div class="list-group list-group-flush">
-                        <a href="#" class="list-group-item list-group-item-action">
-                            <div class="d-flex w-100 justify-content-between">
-                                <h6 class="mb-1">Supply Chain Disruption in Asia</h6>
-                                <small>2h ago</small>
+                <div class="card-body p-0">
+                    @if(count($riskAlerts) > 0)
+                    <div class="scroll-container p-3">
+                        @foreach($riskAlerts as $alert)
+                        <a href="{{ $alert['link'] }}" class="alert-item border-{{ $alert['color'] }} text-decoration-none d-block" target="{{ str_starts_with($alert['link'], 'http') ? '_blank' : '_self' }}">
+                            <div class="d-flex w-100 justify-content-between align-items-start">
+                                <div class="flex-grow-1">
+                                    <div class="d-flex align-items-center mb-2">
+                                        @if(isset($alert['flag_url']))
+                                        <img src="{{ $alert['flag_url'] }}" alt="{{ $alert['country_name'] }}" style="width: 24px; height: 18px; margin-right: 10px; border-radius: 3px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+                                        @endif
+                                        <h6 class="mb-0">
+                                            <i class="fas {{ $alert['icon'] }} text-{{ $alert['color'] }} me-2"></i>
+                                            {{ $alert['title'] }}
+                                        </h6>
+                                    </div>
+                                    <p class="mb-2 small" style="color: #4a5568;">{{ $alert['description'] }}</p>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <span class="badge bg-{{ $alert['color'] }}">{{ ucfirst($alert['severity']) }}</span>
+                                        <span class="badge bg-secondary">{{ ucfirst($alert['type']) }}</span>
+                                    </div>
+                                </div>
+                                <small class="ms-3" style="color: #718096; white-space: nowrap;">
+                                    <i class="far fa-clock me-1"></i>
+                                    {{ $alert['timestamp'] }}
+                                </small>
                             </div>
-                            <p class="mb-1 small text-muted">Major port delays affecting global shipping...</p>
                         </a>
-                        <a href="#" class="list-group-item list-group-item-action">
-                            <div class="d-flex w-100 justify-content-between">
-                                <h6 class="mb-1">Currency Volatility Alert</h6>
-                                <small>5h ago</small>
-                            </div>
-                            <p class="mb-1 small text-muted">Emerging markets facing exchange rate pressure...</p>
-                        </a>
-                        <a href="#" class="list-group-item list-group-item-action">
-                            <div class="d-flex w-100 justify-content-between">
-                                <h6 class="mb-1">Weather Impact on Logistics</h6>
-                                <small>8h ago</small>
-                            </div>
-                            <p class="mb-1 small text-muted">Severe weather conditions affecting transport...</p>
-                        </a>
+                        @endforeach
                     </div>
+                    @else
+                    <div class="no-alerts">
+                        <i class="fas fa-check-circle"></i>
+                        <p class="mb-1 fw-bold">No active risk alerts</p>
+                        <small>All monitored countries and ports are operating normally.</small>
+                    </div>
+                    @endif
+                </div>
+                <div class="card-footer text-center">
+                    <small style="color: #718096;">
+                        <i class="fas fa-sync-alt me-1"></i> 
+                        Alerts are updated every 5 minutes
+                    </small>
                 </div>
             </div>
         </div>
         
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header bg-white">
+        <div class="col-lg-6">
+            <div class="risk-countries-card">
+                <div class="card-header">
                     <h5 class="mb-0">
-                        <i class="fas fa-exclamation-circle text-danger"></i> 
+                        <i class="fas fa-flag me-2"></i> 
                         High Risk Countries
                     </h5>
                 </div>
-                <div class="card-body">
+                <div class="card-body p-0">
                     @if($highRiskCountries->count() > 0)
                     <div class="table-responsive">
-                        <table class="table table-sm">
+                        <table class="table table-hover mb-0">
                             <thead>
                                 <tr>
                                     <th>Country</th>
-                                    <th>Risk Score</th>
-                                    <th>Status</th>
+                                    <th class="text-center">Risk Score</th>
+                                    <th class="text-center">Status</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 @foreach($highRiskCountries as $country)
                                 <tr>
                                     <td>
-                                        <img src="{{ $country->flag_url }}" alt="{{ $country->name }}" style="width: 20px; height: 15px; margin-right: 5px;">
-                                        {{ $country->name }}
+                                        <div class="d-flex align-items-center">
+                                            <img src="{{ $country->flag_url }}" alt="{{ $country->name }}" style="width: 24px; height: 18px; margin-right: 10px; border-radius: 3px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+                                            <span class="fw-semibold">{{ $country->name }}</span>
+                                        </div>
                                     </td>
-                                    <td>
-                                        <span class="badge bg-{{ $country->total_score >= 76 ? 'danger' : 'warning' }}">
+                                    <td class="text-center">
+                                        <span class="badge bg-{{ $country->total_score >= 76 ? 'danger' : 'warning' }} px-3 py-2">
                                             {{ number_format($country->total_score, 1) }}
                                         </span>
                                     </td>
-                                    <td>
-                                        <span class="text-{{ $country->total_score >= 76 ? 'danger' : 'warning' }}">
+                                    <td class="text-center">
+                                        <span class="fw-semibold text-{{ $country->total_score >= 76 ? 'danger' : 'warning' }}">
+                                            <i class="fas fa-exclamation-circle me-1"></i>
                                             {{ ucfirst($country->risk_level) }}
                                         </span>
                                     </td>
@@ -200,12 +574,16 @@
                         </table>
                     </div>
                     @else
-                    <p class="text-muted text-center">No high risk countries at the moment.</p>
-                    <p class="text-center">
-                        <a href="{{ route('country.monitor') }}" class="btn btn-sm btn-primary">
-                            View All Countries
-                        </a>
-                    </p>
+                    <div class="no-alerts">
+                        <i class="fas fa-smile"></i>
+                        <p class="mb-1 fw-bold">No high risk countries</p>
+                        <p class="mb-3">
+                            <a href="{{ route('country.monitor') }}" class="btn btn-primary btn-sm rounded-pill px-4">
+                                <i class="fas fa-globe me-2"></i>
+                                View All Countries
+                            </a>
+                        </p>
+                    </div>
                     @endif
                 </div>
             </div>
@@ -218,17 +596,27 @@
 <script>
     // Risk Trend Chart
     const ctxLine = document.getElementById('riskTrendChart').getContext('2d');
+    const gradientLine = ctxLine.createLinearGradient(0, 0, 0, 400);
+    gradientLine.addColorStop(0, 'rgba(102, 126, 234, 0.5)');
+    gradientLine.addColorStop(1, 'rgba(118, 75, 162, 0.1)');
+    
     new Chart(ctxLine, {
         type: 'line',
         data: {
-            labels: ['Day 1', 'Day 5', 'Day 10', 'Day 15', 'Day 20', 'Day 25', 'Day 30'],
+            labels: {!! json_encode($chartData['trend']['labels']) !!},
             datasets: [{
                 label: 'Average Risk Score',
-                data: [45, 52, 48, 55, 60, 58, 62],
-                borderColor: '#3498db',
-                backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                data: {!! json_encode($chartData['trend']['data']) !!},
+                borderColor: '#667eea',
+                backgroundColor: gradientLine,
                 tension: 0.4,
-                fill: true
+                fill: true,
+                borderWidth: 3,
+                pointBackgroundColor: '#667eea',
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2,
+                pointRadius: 5,
+                pointHoverRadius: 7
             }]
         },
         options: {
@@ -236,14 +624,43 @@
             maintainAspectRatio: true,
             plugins: {
                 legend: {
-                    display: true,
-                    position: 'top'
+                    display: false
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    padding: 12,
+                    cornerRadius: 8,
+                    titleColor: '#fff',
+                    bodyColor: '#fff',
+                    borderColor: '#667eea',
+                    borderWidth: 1
                 }
             },
             scales: {
                 y: {
                     beginAtZero: true,
-                    max: 100
+                    max: 100,
+                    ticks: {
+                        color: '#718096',
+                        font: {
+                            size: 12
+                        }
+                    },
+                    grid: {
+                        color: 'rgba(102, 126, 234, 0.1)',
+                        drawBorder: false
+                    }
+                },
+                x: {
+                    ticks: {
+                        color: '#718096',
+                        font: {
+                            size: 12
+                        }
+                    },
+                    grid: {
+                        display: false
+                    }
                 }
             }
         }
@@ -256,8 +673,20 @@
         data: {
             labels: ['Critical', 'High', 'Medium', 'Low'],
             datasets: [{
-                data: [12, 28, 45, 110],
-                backgroundColor: ['#dc3545', '#fd7e14', '#ffc107', '#28a745']
+                data: [
+                    {{ $chartData['pie']['critical'] }}, 
+                    {{ $chartData['pie']['high'] }}, 
+                    {{ $chartData['pie']['medium'] }}, 
+                    {{ $chartData['pie']['low'] }}
+                ],
+                backgroundColor: [
+                    '#f5576c',
+                    '#fd7e14',
+                    '#ffc107',
+                    '#84fab0'
+                ],
+                borderWidth: 0,
+                hoverOffset: 10
             }]
         },
         options: {
@@ -265,9 +694,27 @@
             maintainAspectRatio: true,
             plugins: {
                 legend: {
-                    position: 'bottom'
+                    position: 'bottom',
+                    labels: {
+                        color: '#2d3748',
+                        font: {
+                            size: 13,
+                            weight: '600'
+                        },
+                        padding: 20,
+                        usePointStyle: true,
+                        pointStyle: 'circle'
+                    }
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    padding: 12,
+                    cornerRadius: 8,
+                    titleColor: '#fff',
+                    bodyColor: '#fff'
                 }
-            }
+            },
+            cutout: '70%'
         }
     });
 </script>
