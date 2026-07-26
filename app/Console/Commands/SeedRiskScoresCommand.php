@@ -4,67 +4,109 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use App\Services\OpenMeteoService;
+use App\Services\WorldBankService;
+use App\Services\RiskScoringService;
 
 class SeedRiskScoresCommand extends Command
 {
-    protected $signature = 'risk:seed-all';
-    protected $description = 'Seed initial risk scores for all countries using default weighted values';
+    protected $signature = 'risk:seed-all {--clear : Clear existing risk scores first}';
+    protected $description = 'Calculate and seed real risk scores for all countries using Weather + World Bank APIs';
+
+    protected $meteoService;
+    protected $worldBankService;
+    protected $riskService;
+
+    public function __construct(
+        OpenMeteoService $meteoService,
+        WorldBankService $worldBankService,
+        RiskScoringService $riskService
+    ) {
+        parent::__construct();
+        $this->meteoService   = $meteoService;
+        $this->worldBankService = $worldBankService;
+        $this->riskService    = $riskService;
+    }
 
     public function handle()
     {
-        $this->info('🌍 Seeding risk scores for all countries...');
+        if ($this->option('clear')) {
+            DB::table('risk_scores')->truncate();
+            $this->info('🗑️  Existing risk scores cleared.');
+        }
 
-        $countries = DB::table('countries')->get(['code', 'name', 'region']);
+        $countries = DB::table('countries')
+            ->select('code', 'name', 'cca2', 'latitude', 'longitude')
+            ->get();
 
         if ($countries->isEmpty()) {
             $this->error('No countries found. Run countries:fetch first.');
             return 1;
         }
 
-        $this->info("Found {$countries->count()} countries. Calculating scores...");
+        $this->info("🌍 Calculating real risk scores for {$countries->count()} countries...");
+        $this->info("   (Uses Weather API + World Bank API — same data as View Details)");
+        $this->newLine();
+
         $bar = $this->output->createProgressBar($countries->count());
         $bar->start();
 
-        $now = now();
-        $seeded = 0;
+        $done = 0;
+        $errors = 0;
 
         foreach ($countries as $country) {
-            // Assign a base score slightly varied by region for realism
-            $regionBase = match ($country->region ?? '') {
-                'Africa'  => 62,
-                'Asia'    => 52,
-                'Europe'  => 35,
-                'Americas'=> 45,
-                'Oceania' => 38,
-                default   => 50,
-            };
+            try {
+                // Skip if already has a recent score (within 6 hours)
+                $existing = DB::table('risk_scores')
+                    ->where('country_code', $country->code)
+                    ->where('calculated_at', '>=', now()->subHours(6))
+                    ->exists();
 
-            // Add small random variation so data looks real, not all identical
-            $variation = rand(-8, 8);
-            $totalScore = max(10, min(90, $regionBase + $variation));
+                if ($existing) {
+                    $bar->advance();
+                    $done++;
+                    continue;
+                }
 
-            $riskLevel = match(true) {
-                $totalScore >= 76 => 'critical',
-                $totalScore >= 51 => 'high',
-                $totalScore >= 26 => 'medium',
-                default           => 'low',
-            };
+                // Get weather data
+                $weather = null;
+                if ($country->latitude && $country->longitude) {
+                    try {
+                        $weather = $this->meteoService->getWeather(
+                            (float) $country->latitude,
+                            (float) $country->longitude
+                        );
+                    } catch (\Exception $e) {
+                        // weather stays null → default 30
+                    }
+                }
 
-            DB::table('risk_scores')->updateOrInsert(
-                ['country_code' => $country->code],
-                [
-                    'weather_score'   => 30,
-                    'inflation_score' => 50,
-                    'currency_score'  => 40,
-                    'news_score'      => 50,
-                    'total_score'     => $totalScore,
-                    'risk_level'      => $riskLevel,
-                    'calculated_at'   => $now,
-                    'updated_at'      => $now,
-                ]
-            );
+                // Get inflation from World Bank
+                $latestInflation = null;
+                try {
+                    $wbCode = $country->cca2 ?? $country->code;
+                    $inflationData = $this->worldBankService->getInflation($wbCode);
+                    if (!empty($inflationData)) {
+                        $latestInflation = round(reset($inflationData), 2);
+                    }
+                } catch (\Exception $e) {
+                    // inflation stays null → default 50
+                }
 
-            $seeded++;
+                $riskData = [
+                    'weather'         => $weather,
+                    'inflation'       => $latestInflation,
+                    'currency_change' => 0,       // neutral default
+                    'news_sentiment'  => 'neutral' // neutral default
+                ];
+
+                $this->riskService->calculateRiskScore($country->code, $riskData);
+                $done++;
+
+            } catch (\Exception $e) {
+                $errors++;
+            }
+
             $bar->advance();
         }
 
@@ -78,7 +120,7 @@ class SeedRiskScoresCommand extends Command
             ->get()
             ->pluck('cnt', 'risk_level');
 
-        $this->info("✅ Done! Seeded {$seeded} risk scores.");
+        $this->info("✅ Done! Calculated scores for {$done} countries. Errors: {$errors}");
         $this->table(
             ['Risk Level', 'Count'],
             [
@@ -89,8 +131,8 @@ class SeedRiskScoresCommand extends Command
             ]
         );
 
-        // Now generate historical snapshots so the trend chart has data
-        $this->info('📈 Generating historical trend data...');
+        // Generate historical snapshots
+        $this->info('📈 Generating 30-day historical trend data...');
         $this->call('risk:generate-historical', ['--days' => 30]);
 
         return 0;
