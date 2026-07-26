@@ -9,6 +9,11 @@ use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Admin\PortController as AdminPortController;
 use App\Http\Controllers\Admin\ArticleController as AdminArticleController;
 
+// Health check endpoint for Railway (no DB required)
+Route::get('/health', function () {
+    return response()->json(['status' => 'ok'], 200);
+});
+
 // Root redirect
 Route::get('/', function () {
     if (auth()->check()) {
