@@ -105,20 +105,28 @@ class ExchangeRateService
     {
         $currentRate = $this->getRate($baseCurrency, $targetCurrency);
         
-        // Simulate 7 days of history with ±1% variation for more realistic data
         $history = [];
-        for ($i = 6; $i >= 0; $i--) {
+        // Generate deterministic history for past 6 days
+        for ($i = 6; $i >= 1; $i--) {
             $date = now()->subDays($i)->format('Y-m-d');
-            $variation = (rand(-100, 100) / 10000); // -1% to +1% variation
+            // Create a deterministic pseudo-random variation based on date and currency
+            $seed = crc32($targetCurrency . $date);
+            // Get a value between -100 and +100 (-1% to +1%)
+            $rand = ($seed % 201) - 100;
+            $variation = $rand / 10000;
+            
             $rate = $currentRate * (1 + $variation);
             
-            // Ensure rate is positive and reasonable
+            // Ensure rate is positive
             if ($rate > 0) {
                 $history[$date] = round($rate, 6);
             } else {
                 $history[$date] = $currentRate;
             }
         }
+        
+        // Ensure today is EXACTLY the real current rate
+        $history[now()->format('Y-m-d')] = round($currentRate, 6);
         
         return $history;
     }
