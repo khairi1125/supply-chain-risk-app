@@ -1,6 +1,6 @@
 {
   "deploy": {
-    "startCommand": "php artisan migrate:fresh --force ; php -S 0.0.0.0: -t public",
+    "startCommand": "php artisan migrate:fresh --force && php -S 0.0.0.0:$PORT -t public",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 120
   }
