@@ -878,6 +878,10 @@
         <!-- Top Navbar -->
         <nav class="navbar navbar-expand-lg navbar-light bg-white sticky-top">
             <div class="container-fluid">
+                <!-- Hamburger menu for mobile -->
+                <button class="btn btn-light d-md-none me-2" type="button" id="sidebarToggle">
+                    <i class="fas fa-bars"></i>
+                </button>
                 <span class="navbar-brand mb-0 h1">@yield('page-title', 'Dashboard')</span>
                     
                     <ul class="navbar-nav ms-auto">
@@ -975,6 +979,19 @@
         })();
     </script>
     
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Mobile sidebar toggle
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            const sidebar = document.querySelector('.sidebar');
+            
+            if (sidebarToggle && sidebar) {
+                sidebarToggle.addEventListener('click', function() {
+                    sidebar.classList.toggle('show');
+                });
+            }
+        });
+    </script>
     @stack('scripts')
 </body>
 </html>
