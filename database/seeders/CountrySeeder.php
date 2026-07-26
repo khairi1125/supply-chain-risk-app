@@ -5,29 +5,29 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
-class DictionarySeeder extends Seeder
+class CountrySeeder extends Seeder
 {
     public function run(): void
     {
-        $positiveWords = [
-            ['word' => 'growth'],
-            ['word' => 'increase'],
-            ['word' => 'profit'],
-            ['word' => 'stable'],
-            ['word' => 'improve']
+        $countries = [
+            ['code' => 'USA', 'name' => 'United States', 'cca2' => 'US'],
+            ['code' => 'CHN', 'name' => 'China', 'cca2' => 'CN'],
+            ['code' => 'IDN', 'name' => 'Indonesia', 'cca2' => 'ID'],
+            ['code' => 'JPN', 'name' => 'Japan', 'cca2' => 'JP'],
+            ['code' => 'GBR', 'name' => 'United Kingdom', 'cca2' => 'GB'],
+            ['code' => 'DEU', 'name' => 'Germany', 'cca2' => 'DE'],
+            ['code' => 'SGP', 'name' => 'Singapore', 'cca2' => 'SG'],
+            ['code' => 'IND', 'name' => 'India', 'cca2' => 'IN'],
+            ['code' => 'AUS', 'name' => 'Australia', 'cca2' => 'AU'],
         ];
 
-        $negativeWords = [
-            ['word' => 'war'],
-            ['word' => 'crisis'],
-            ['word' => 'inflation'],
-            ['word' => 'delay'],
-            ['word' => 'disaster']
-        ];
+        foreach ($countries as $country) {
+            DB::table('countries')->updateOrInsert(
+                ['code' => $country['code']],
+                ['name' => $country['name'], 'cca2' => $country['cca2']]
+            );
+        }
 
-        DB::table('positive_words')->insert($positiveWords);
-        DB::table('negative_words')->insert($negativeWords);
-
-        $this->command->info('Kamus kata positif dan negatif berhasil dimasukkan!');
+        $this->command->info('Data negara berhasil dimasukkan!');
     }
 }
