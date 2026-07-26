@@ -403,7 +403,7 @@
     <!-- Search & Filter Section -->
     <div class="search-filter-section">
         <div class="row g-3">
-            <div class="col-md-8">
+            <div class="col-md-6">
                 <div class="input-group">
                     <span class="input-group-text">
                         <i class="bi bi-search"></i>
@@ -414,13 +414,74 @@
                            placeholder="Search country name...">
                 </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <select class="form-select" id="filterRegion">
                     <option value="All">🌐 All Regions</option>
                     @foreach($regions as $region)
                         <option value="{{ $region }}">{{ $region }}</option>
                     @endforeach
                 </select>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" id="filterRisk">
+                    <option value="All">⚠️ All Risks</option>
+                    <option value="critical">🔴 Critical</option>
+                    <option value="high">🟠 High</option>
+                    <option value="medium">🟡 Medium</option>
+                    <option value="low">🟢 Low</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Risk Summary Section -->
+    <div class="row mb-4" id="riskSummarySection">
+        <div class="col-md-2 col-sm-4 col-6 mb-2">
+            <div class="card bg-danger text-white text-center h-100" style="border-radius: 12px; border: none; box-shadow: 0 4px 10px rgba(220,53,69,0.2);">
+                <div class="card-body p-3">
+                    <h6 class="mb-1 opacity-75">Critical</h6>
+                    <h3 class="mb-0 fw-bold" id="countCritical">0</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-sm-4 col-6 mb-2">
+            <div class="card bg-warning text-white text-center h-100" style="border-radius: 12px; border: none; box-shadow: 0 4px 10px rgba(255,193,7,0.2);">
+                <div class="card-body p-3">
+                    <h6 class="mb-1 opacity-75">High</h6>
+                    <h3 class="mb-0 fw-bold" id="countHigh">0</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-sm-4 col-6 mb-2">
+            <div class="card text-dark text-center h-100" style="background-color: #0dcaf0; border-radius: 12px; border: none; box-shadow: 0 4px 10px rgba(13,202,240,0.2);">
+                <div class="card-body p-3">
+                    <h6 class="mb-1 opacity-75 text-white">Medium</h6>
+                    <h3 class="mb-0 fw-bold text-white" id="countMedium">0</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-sm-4 col-6 mb-2">
+            <div class="card bg-success text-white text-center h-100" style="border-radius: 12px; border: none; box-shadow: 0 4px 10px rgba(25,135,84,0.2);">
+                <div class="card-body p-3">
+                    <h6 class="mb-1 opacity-75">Low</h6>
+                    <h3 class="mb-0 fw-bold" id="countLow">0</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-sm-4 col-6 mb-2">
+            <div class="card bg-secondary text-white text-center h-100" style="border-radius: 12px; border: none; box-shadow: 0 4px 10px rgba(108,117,125,0.2);">
+                <div class="card-body p-3">
+                    <h6 class="mb-1 opacity-75">No Data</h6>
+                    <h3 class="mb-0 fw-bold" id="countNoData">0</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-sm-4 col-6 mb-2">
+            <div class="card text-white text-center h-100" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; border: none; box-shadow: 0 4px 10px rgba(102,126,234,0.2);">
+                <div class="card-body p-3">
+                    <h6 class="mb-1 opacity-75">Total</h6>
+                    <h3 class="mb-0 fw-bold" id="countTotal">0</h3>
+                </div>
             </div>
         </div>
     </div>
@@ -430,7 +491,8 @@
         @foreach($countries as $country)
         <div class="col-xl-3 col-lg-4 col-md-6 country-card" 
              data-name="{{ strtolower($country->name) }}" 
-             data-region="{{ $country->region }}">
+             data-region="{{ $country->region }}"
+             data-risk="loading">
             <div class="card">
                 <div class="card-body">
                     <!-- Country Header -->
@@ -702,56 +764,118 @@ let currentCountryCode = null; // Store current country code for refresh
 
 // Load risk scores for all countries
 document.addEventListener('DOMContentLoaded', function() {
+    filterCountries(); // Initialize counts
     loadAllRiskScores();
+
+    // Auto-open country detail if navigated from Watchlist with ?code=XXX
+    const urlParams = new URLSearchParams(window.location.search);
+    const autoCode = urlParams.get('code');
+    if (autoCode) {
+        // Small delay to allow page elements to fully render
+        setTimeout(() => {
+            showCountryDetail(autoCode);
+        }, 500);
+    }
 });
 
 // Search functionality
 document.getElementById('searchCountry').addEventListener('input', filterCountries);
 document.getElementById('filterRegion').addEventListener('change', filterCountries);
+document.getElementById('filterRisk').addEventListener('change', filterCountries);
 
 function filterCountries() {
     const searchTerm = document.getElementById('searchCountry').value.toLowerCase();
     const selectedRegion = document.getElementById('filterRegion').value;
+    const selectedRisk = document.getElementById('filterRisk').value;
     const cards = document.querySelectorAll('.country-card');
+    
     let visibleCount = 0;
+    let counts = {
+        critical: 0,
+        high: 0,
+        medium: 0,
+        low: 0,
+        nodata: 0
+    };
 
     cards.forEach(card => {
         const name = card.getAttribute('data-name');
         const region = card.getAttribute('data-region');
+        const riskLevel = card.getAttribute('data-risk') || 'loading';
         
         const matchesSearch = name.includes(searchTerm);
         const matchesRegion = selectedRegion === 'All' || region === selectedRegion;
+        const matchesRisk = selectedRisk === 'All' || riskLevel === selectedRisk;
         
-        if (matchesSearch && matchesRegion) {
+        if (matchesSearch && matchesRegion && matchesRisk) {
             card.style.display = '';
             visibleCount++;
+            
+            if (riskLevel === 'critical') counts.critical++;
+            else if (riskLevel === 'high') counts.high++;
+            else if (riskLevel === 'medium') counts.medium++;
+            else if (riskLevel === 'low') counts.low++;
+            else counts.nodata++;
         } else {
             card.style.display = 'none';
         }
     });
 
     document.getElementById('noResults').style.display = visibleCount === 0 ? 'block' : 'none';
+    
+    // Update summary counts
+    const elCritical = document.getElementById('countCritical');
+    const elHigh = document.getElementById('countHigh');
+    const elMedium = document.getElementById('countMedium');
+    const elLow = document.getElementById('countLow');
+    const elNoData = document.getElementById('countNoData');
+    const elTotal = document.getElementById('countTotal');
+    
+    if (elCritical) elCritical.textContent = counts.critical;
+    if (elHigh) elHigh.textContent = counts.high;
+    if (elMedium) elMedium.textContent = counts.medium;
+    if (elLow) elLow.textContent = counts.low;
+    if (elNoData) elNoData.textContent = counts.nodata;
+    if (elTotal) elTotal.textContent = visibleCount;
 }
 
-// Load risk scores
-async function loadAllRiskScores() {
-    const badges = document.querySelectorAll('.risk-badge');
-    
-    for (const badge of badges) {
-        const code = badge.getAttribute('data-code');
-        try {
-            const response = await fetch(`/api/risk/${code}`);
-            const data = await response.json();
-            
-            if (data.total_score !== undefined) {
-                badge.textContent = `Risk: ${data.total_score}`;
-                badge.className = `badge bg-${getRiskColorClass(data.risk_level)} risk-badge`;
-            }
-        } catch (error) {
-            badge.textContent = 'N/A';
-            badge.className = 'badge bg-secondary risk-badge';
-        }
-    }
+// Load risk scores efficiently using a single API call to prevent blocking other requests
+function loadAllRiskScores() {
+    fetch('/api/risk-all')
+        .then(response => response.json())
+        .then(data => {
+            const badges = document.querySelectorAll('.risk-badge');
+            badges.forEach(badge => {
+                const code = badge.getAttribute('data-code');
+                const countryData = data[code];
+                
+                if (countryData && countryData.total_score !== undefined) {
+                    badge.textContent = `Risk: ${countryData.total_score}`;
+                    badge.className = `badge bg-${getRiskColorClass(countryData.risk_level)} risk-badge`;
+                    const card = badge.closest('.country-card');
+                    if (card) {
+                        card.setAttribute('data-risk', countryData.risk_level);
+                    }
+                } else {
+                    badge.textContent = 'N/A';
+                    badge.className = 'badge bg-secondary risk-badge';
+                    const card = badge.closest('.country-card');
+                    if (card) {
+                        card.setAttribute('data-risk', 'unknown');
+                    }
+                }
+            });
+            filterCountries();
+        })
+        .catch(error => {
+            console.error('Failed to load risk scores:', error);
+            const badges = document.querySelectorAll('.risk-badge');
+            badges.forEach(badge => {
+                badge.textContent = 'Error';
+                badge.className = 'badge bg-secondary risk-badge';
+            });
+            filterCountries();
+        });
 }
 
 // View Detail button click

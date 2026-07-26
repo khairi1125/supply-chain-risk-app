@@ -47,10 +47,27 @@ Route::middleware(['auth'])->group(function () {
         $countries = \Illuminate\Support\Facades\DB::table('countries')->orderBy('name')->get();
         return view('dashboard.news', compact('countries'));
     })->name('news');
+    Route::get('/expert-analysis', [DashboardController::class, 'expertAnalysis'])->name('expert.analysis');
     Route::get('/compare', function () {
         return view('dashboard.compare');
     })->name('compare');
     Route::get('/my-watchlist', [WatchlistController::class, 'index'])->name('watchlist.index');
+    Route::get('/shipping-route', function () {
+        $ports = \Illuminate\Support\Facades\DB::table('ports')
+            ->leftJoin('countries', 'ports.country_code', '=', 'countries.code')
+            ->select(
+                'ports.id',
+                'ports.port_name as name',
+                'ports.country_name as country',
+                'ports.latitude',
+                'ports.longitude',
+                'countries.code as country_code'
+            )
+            ->where('ports.is_active', 1)
+            ->orderBy('ports.port_name')
+            ->get();
+        return view('dashboard.shipping-route', compact('ports'));
+    })->name('shipping.route');
 });
 
 // Admin Routes (require authentication + admin role)
@@ -69,8 +86,5 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     
     // Article Management
     Route::resource('articles', AdminArticleController::class);
-    Route::get('articles-import', [AdminArticleController::class, 'import'])->name('articles.import');
-    Route::post('articles-fetch-news', [AdminArticleController::class, 'fetchNews'])->name('articles.fetch-news');
-    Route::post('articles-import-news', [AdminArticleController::class, 'importNews'])->name('articles.import-news');
     Route::post('articles/{article}/toggle-status', [AdminArticleController::class, 'toggleStatus'])->name('articles.toggle-status');
 });

@@ -56,9 +56,10 @@ class DashboardController extends Controller
         // Get REAL historical trend data from risk_score_histories table (last 30 days)
         $histories = DB::table('risk_score_histories')
             ->select('snapshot_date', 'avg_total_score')
-            ->orderBy('snapshot_date', 'asc')
+            ->orderBy('snapshot_date', 'desc')
             ->limit(30)
-            ->get();
+            ->get()
+            ->reverse();
         
         $trendData = [];
         $trendLabels = [];
@@ -98,5 +99,14 @@ class DashboardController extends Controller
             ->pluck('region');
 
         return view('dashboard.country-monitor', compact('countries', 'regions'));
+    }
+    public function expertAnalysis()
+    {
+        $articles = \App\Models\Article::with('user')
+            ->where('status', 'published')
+            ->orderBy('published_at', 'desc')
+            ->paginate(10);
+            
+        return view('dashboard.expert-analysis', compact('articles'));
     }
 }

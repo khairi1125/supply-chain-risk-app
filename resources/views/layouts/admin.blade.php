@@ -267,7 +267,7 @@
                 <i class="fas fa-map-marked-alt"></i> Port Map
             </a>
             <a class="nav-link {{ request()->routeIs('admin.articles.*') ? 'active' : '' }}" href="{{ route('admin.articles.index') }}">
-                <i class="fas fa-newspaper"></i> News Management
+                <i class="fas fa-newspaper"></i> Kelola Artikel Analisis
             </a>
             
             <div class="dropdown-divider mx-3 my-3" style="border-color: rgba(255,255,255,0.2);"></div>

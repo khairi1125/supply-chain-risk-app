@@ -1,20 +1,20 @@
 @extends('layouts.admin')
 
-@section('title', 'News Management')
+@section('title', 'Kelola Artikel Analisis')
 
-@section('page-title', 'News Management')
+@section('page-title', 'Kelola Artikel Analisis')
 
 @section('content')
 <div class="container-fluid">
     <!-- Header with Create Button -->
     <div class="row mb-4">
         <div class="col-md-6">
-            <h2>📰 News Management</h2>
-            <p class="text-muted">Manage and curate news for users</p>
+            <h2>📝 Kelola Artikel Analisis</h2>
+            <p class="text-muted">Tulis dan kelola artikel analisis original untuk pengguna</p>
         </div>
         <div class="col-md-6 text-end">
-            <a href="{{ route('admin.articles.import') }}" class="btn btn-info">
-                <i class="fas fa-download"></i> Import from GNews
+            <a href="{{ route('admin.articles.create') }}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> Tambah Artikel
             </a>
         </div>
     </div>
@@ -175,10 +175,10 @@
                 </div>
             @else
                 <div class="text-center py-5">
-                    <i class="fas fa-newspaper fa-4x text-muted mb-3"></i>
-                    <p class="text-muted">No news found. Import news from GNews!</p>
-                    <a href="{{ route('admin.articles.import') }}" class="btn btn-primary mt-2">
-                        <i class="fas fa-plus"></i> Import News
+                    <i class="fas fa-file-contract fa-4x text-muted mb-3"></i>
+                    <p class="text-muted">Belum ada artikel. Silakan buat artikel baru!</p>
+                    <a href="{{ route('admin.articles.create') }}" class="btn btn-primary mt-2">
+                        <i class="fas fa-plus"></i> Buat Artikel Baru
                     </a>
                 </div>
             @endif

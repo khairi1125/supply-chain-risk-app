@@ -33,7 +33,7 @@ class RiskAlertService
                         'link' => $alert->link,
                         'icon' => $alert->icon,
                         'color' => $alert->color,
-                        'timestamp' => \Carbon\Carbon::parse($alert->created_at)->diffForHumans(),
+                        'timestamp' => \Carbon\Carbon::parse($alert->updated_at)->diffForHumans(),
                     ];
                 })
                 ->toArray();

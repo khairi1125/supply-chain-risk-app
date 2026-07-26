@@ -11,12 +11,9 @@ use Illuminate\Support\Facades\Auth;
 class ArticleController extends Controller
 {
     protected $activityLogService;
-    protected $gnewsService;
-
-    public function __construct(ActivityLogService $activityLogService, \App\Services\GNewsService $gnewsService)
+    public function __construct(ActivityLogService $activityLogService)
     {
         $this->activityLogService = $activityLogService;
-        $this->gnewsService = $gnewsService;
     }
 
     /**
@@ -262,151 +259,7 @@ class ArticleController extends Controller
         ]);
     }
     
-    /**
-     * Show import news page
-     */
-    public function import()
-    {
-        return view('admin.articles.import');
-    }
-    
-    /**
-     * Fetch news from GNews API
-     */
-    public function fetchNews(Request $request)
-    {
-        $query = $request->get('query', 'supply chain logistics trade');
-        $limit = $request->get('limit', 20);
-        $skipCache = $request->get('skip_cache', false); // New parameter
-        
-        try {
-            // Add timestamp to query to get different results
-            $enhancedQuery = $query;
-            
-            // If skip_cache, clear the cache for this query
-            if ($skipCache) {
-                $cacheKeys = [
-                    'gnews_search_' . md5($query . null . null . $limit),
-                    'gnews_search_' . md5($enhancedQuery . null . null . $limit),
-                ];
-                foreach ($cacheKeys as $key) {
-                    \Illuminate\Support\Facades\Cache::forget($key);
-                }
-            }
-            
-            $news = $this->gnewsService->searchNews($enhancedQuery, null, null, $limit);
-            
-            return response()->json([
-                'success' => true,
-                'data' => $news,
-                'query_used' => $enhancedQuery,
-                'cache_cleared' => $skipCache
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to fetch news: ' . $e->getMessage()
-            ], 500);
-        }
-    }
-    
-    /**
-     * Import a news article
-     */
-    public function importNews(Request $request)
-    {
-        $validated = $request->validate([
-            'title' => 'required|string|max:255',
-            'description' => 'required|string',
-            'content' => 'required|string',
-            'url' => 'required|url',
-            'source' => 'nullable|string',
-        ]);
-        
-        // Check if article with same URL already exists
-        $existing = Article::where('url', $validated['url'])->first();
-        if ($existing) {
-            return response()->json([
-                'success' => false,
-                'message' => 'This news article has already been imported!'
-            ], 422);
-        }
-        
-        // Analyze sentiment
-        $sentimentService = app(\App\Services\SentimentAnalysisService::class);
-        $text = $validated['title'] . ' ' . $validated['description'];
-        $sentiment = $sentimentService->analyzeSentiment($text);
-        
-        // Auto-categorize based on keywords in title and description
-        $category = $this->categorizeArticle($validated['title'], $validated['description']);
-        
-        // Create article content with source attribution
-        $content = "<p><strong>Source:</strong> {$validated['source']}</p>\n\n";
-        $content .= "<p>" . nl2br(htmlspecialchars($validated['content'])) . "</p>\n\n";
-        $content .= "<p><a href=\"{$validated['url']}\" target=\"_blank\">Read original article →</a></p>";
-        
-        $article = Article::create([
-            'user_id' => Auth::id(),
-            'title' => $validated['title'],
-            'description' => $validated['description'],
-            'url' => $validated['url'],
-            'source' => $validated['source'] ?? 'Unknown',
-            'content' => $content,
-            'category' => $category,
-            'sentiment' => $sentiment['sentiment'],
-            'sentiment_score' => $sentiment['score'],
-            'sentiment_confidence' => $sentiment['confidence'],
-            'status' => 'draft', // Always import as draft
-            'published_at' => null,
-        ]);
-        
-        // Log activity
-        $this->activityLogService->log([
-            'user_id' => Auth::id(),
-            'action' => 'article_imported',
-            'description' => "Imported news article: {$article->title} (Sentiment: {$sentiment['sentiment']}, Category: {$category})",
-        ]);
-        
-        return response()->json([
-            'success' => true,
-            'message' => 'News article imported successfully with sentiment analysis!',
-            'article_id' => $article->id,
-            'sentiment' => $sentiment
-        ]);
-    }
-    
-    /**
-     * Auto-categorize article based on keywords
-     */
-    private function categorizeArticle($title, $description)
-    {
-        $text = strtolower($title . ' ' . $description);
-        
-        // Define keywords for each category
-        $categories = [
-            'logistics' => ['shipping', 'logistics', 'port', 'cargo', 'freight', 'transport', 'supply chain', 'delivery', 'warehouse'],
-            'economy' => ['economy', 'trade', 'tariff', 'commerce', 'business', 'market', 'economic', 'gdp', 'inflation', 'finance'],
-            'geopolitics' => ['geopolitics', 'diplomatic', 'sanctions', 'conflict', 'tension', 'political', 'relations', 'government', 'policy'],
-            'weather' => ['weather', 'climate', 'disaster', 'storm', 'flood', 'typhoon', 'hurricane', 'rain', 'drought', 'temperature'],
-        ];
-        
-        // Count keywords for each category
-        $scores = [];
-        foreach ($categories as $cat => $keywords) {
-            $score = 0;
-            foreach ($keywords as $keyword) {
-                $score += substr_count($text, $keyword);
-            }
-            $scores[$cat] = $score;
-        }
-        
-        // Get category with highest score
-        arsort($scores); // Sort by score descending
-        $topCategory = key($scores); // Get first key (highest score)
-        
-        // Only use the top category if it has a score > 0, otherwise default to 'logistics'
-        return ($scores[$topCategory] > 0) ? $topCategory : 'logistics';
-    }
+    // Removed GNews import logic
     
     /**
      * Clear all news-related caches

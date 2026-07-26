@@ -881,46 +881,79 @@ async function fetchComparisonData(countryCodes) {
     for (const code of countryCodes) {
         console.log(`Fetching data for ${code}...`);
         
-        const country = allCountries.find(c => c.code === code);
-        
-        // Fetch weather data
-        const weatherResponse = await fetch(`/api/weather/${country.latitude}/${country.longitude}`);
-        const weatherData = await weatherResponse.json();
-        
-        // Find currency for this country from pre-fetched list
-        // API returns `rate` field (e.g., IDR per 1 USD = 15000)
-        const currencyEntry = allCurrencies.find(c => c.country_code === code);
-        const currencyData = currencyEntry ? {
-            country_code: code,
-            rate: currencyEntry.rate,            // e.g., 15000 (IDR per 1 USD)
-            currency_code: currencyEntry.currency_code,
-            currency_name: currencyEntry.currency_name,
-            change_7d: currencyEntry.change_7d
-        } : {
-            country_code: code,
-            rate: null,
-            currency_code: country.currency_code,
-            currency_name: country.currency_name,
-            change_7d: 0
-        };
-        
-        // Fetch news sentiment
-        const newsResponse = await fetch(`/api/news/search?q=${encodeURIComponent(country.name)}&limit=10`);
-        const newsData = await newsResponse.json();
-        
-        // Fetch ports data for this country
-        const portsResponse = await fetch(`/api/ports/country/${code}`);
-        const portsData = await portsResponse.json();
-        
-        comparisonData[code] = {
-            country: country,
-            weather: weatherData.data || {},
-            currency: currencyData,
-            news: newsData.data || {},
-            ports: portsData.success ? portsData.data : []
-        };
-        
-        console.log(`✅ Data for ${country.name}:`, comparisonData[code]);
+        try {
+            const country = allCountries.find(c => c.code === code);
+            
+            // Fetch weather data
+            const weatherResponse = await fetch(`/api/weather/${country.latitude}/${country.longitude}`);
+            const weatherData = await weatherResponse.json();
+            
+            // Find currency for this country from pre-fetched list
+            // API returns `rate` field (e.g., IDR per 1 USD = 15000)
+            const currencyEntry = allCurrencies.find(c => c.country_code === code);
+            const currencyData = currencyEntry ? {
+                country_code: code,
+                rate: currencyEntry.rate,            // e.g., 15000 (IDR per 1 USD)
+                currency_code: currencyEntry.currency_code,
+                currency_name: currencyEntry.currency_name,
+                change_7d: currencyEntry.change_7d
+            } : {
+                country_code: code,
+                rate: null,
+                currency_code: country.currency_code,
+                currency_name: country.currency_name,
+                change_7d: 0
+            };
+            
+            // Fetch news sentiment - USE SAME ENDPOINT AS COUNTRY MONITOR
+            const countryFullResponse = await fetch(`/api/countries/${code}`);
+            const countryFullData = await countryFullResponse.json();
+            const newsData = countryFullData.news || { articles: [], sentiment: {} };
+            console.log(`News data for ${code}:`, newsData);
+            
+            // Fetch ports data for this country
+            const portsResponse = await fetch(`/api/ports/country/${code}`);
+            const portsData = await portsResponse.json();
+            console.log(`🚢 RAW Ports response for ${code}:`, portsData);
+            
+            // DIRECT ASSIGNMENT - trust the API
+            const portsArray = (portsData && portsData.data) ? portsData.data : [];
+            console.log(`✅ Final ports array for ${code}: ${portsArray.length} ports`, portsArray);
+            
+            comparisonData[code] = {
+                country: country,
+                weather: weatherData.data || {},
+                currency: currencyData,
+                news: {
+                    articles: newsData.articles || [],
+                    sentiment_analysis: newsData.sentiment || {}
+                },
+                ports: portsArray
+            };
+            
+            console.log(`✅ Data for ${country.name}:`, comparisonData[code]);
+        } catch (error) {
+            console.error(`❌ Error fetching data for ${code}:`, error);
+            
+            // Add minimal data structure on error so the country still appears
+            const country = allCountries.find(c => c.code === code);
+            comparisonData[code] = {
+                country: country,
+                weather: {},
+                currency: {
+                    country_code: code,
+                    rate: null,
+                    currency_code: country?.currency_code || 'USD',
+                    currency_name: country?.currency_name || 'Unknown',
+                    change_7d: 0
+                },
+                news: {
+                    articles: [],
+                    sentiment_analysis: {}
+                },
+                ports: []
+            };
+        }
     }
 }
 
@@ -948,7 +981,10 @@ function displayQuickStats() {
         // Get flag emoji
         const flagEmoji = getFlagEmoji(country.flag_url);
         
-        const riskBadge = getRiskBadge(weather.risk_level);
+        // Handle missing weather data
+        const riskLevel = weather && weather.risk_level ? weather.risk_level : 'unknown';
+        const temperature = weather && weather.temperature ? weather.temperature : '-';
+        const riskBadge = getRiskBadge(riskLevel);
         
         const col = document.createElement('div');
         col.className = `col-md-${12 / Object.keys(comparisonData).length}`;
@@ -966,7 +1002,7 @@ function displayQuickStats() {
                         </div>
                         <div>
                             <small class="text-muted d-block">Temperature</small>
-                            <strong>${weather.temperature || '-'}°C</strong>
+                            <strong>${temperature}°C</strong>
                         </div>
                     </div>
                 </div>
@@ -1025,10 +1061,16 @@ function displayWeatherTab() {
     Object.keys(comparisonData).forEach(code => {
         const data = comparisonData[code];
         const country = data.country;
-        const weather = data.weather;
+        const weather = data.weather || {};
         
-        const riskBadge = getRiskBadge(weather.risk_level);
-        const weatherIcon = getWeatherIcon(weather.weather_condition);
+        const riskLevel = weather.risk_level || 'unknown';
+        const temperature = weather.temperature || '-';
+        const weatherCondition = weather.weather_condition || 'Unknown';
+        const rainfall = weather.rainfall || 0;
+        const windSpeed = weather.wind_speed || 0;
+        
+        const riskBadge = getRiskBadge(riskLevel);
+        const weatherIcon = getWeatherIcon(weatherCondition);
         const flagEmoji = getFlagEmoji(country.flag_url);
         
         const col = document.createElement('div');
@@ -1041,18 +1083,18 @@ function displayWeatherTab() {
                 <div class="card-body">
                     <div class="text-center mb-3">
                         <div style="font-size: 3rem;">${weatherIcon}</div>
-                        <h3>${weather.temperature || '-'}°C</h3>
-                        <p class="text-muted">${weather.weather_condition || 'Unknown'}</p>
+                        <h3>${temperature}°C</h3>
+                        <p class="text-muted">${weatherCondition}</p>
                         ${riskBadge}
                     </div>
                     <table class="table table-sm">
                         <tr>
                             <td><i class="bi bi-droplet"></i> Rainfall</td>
-                            <td class="text-end"><strong>${weather.rainfall || 0}mm</strong></td>
+                            <td class="text-end"><strong>${rainfall}mm</strong></td>
                         </tr>
                         <tr>
                             <td><i class="bi bi-wind"></i> Wind Speed</td>
-                            <td class="text-end"><strong>${weather.wind_speed || 0}km/h</strong></td>
+                            <td class="text-end"><strong>${windSpeed}km/h</strong></td>
                         </tr>
                     </table>
                 </div>
@@ -1073,13 +1115,16 @@ function displayEconomyTab() {
     Object.keys(comparisonData).forEach((code, index) => {
         const data = comparisonData[code];
         const country = data.country;
-        const currency = data.currency;
+        const currency = data.currency || {};
         
         const flagEmoji = getFlagEmoji(country.flag_url);
         // `rate` = how many local currency per 1 USD (e.g., IDR: 15000, MYR: 4.5)
         const rate = currency.rate || 0;
-        const changeClass = currency.change_7d > 0 ? 'text-success' : (currency.change_7d < 0 ? 'text-danger' : 'text-muted');
-        const changeArrow = currency.change_7d > 0 ? '▲' : (currency.change_7d < 0 ? '▼' : '—');
+        const change7d = currency.change_7d || 0;
+        const changeClass = change7d > 0 ? 'text-success' : (change7d < 0 ? 'text-danger' : 'text-muted');
+        const changeArrow = change7d > 0 ? '▲' : (change7d < 0 ? '▼' : '—');
+        const currencyCode = currency.currency_code || country.currency_code || 'N/A';
+        const currencyName = currency.currency_name || country.currency_name || '-';
         
         labels.push(country.name);
         rates.push(rate);
@@ -1093,16 +1138,16 @@ function displayEconomyTab() {
                     <hr>
                     <div>
                         <small class="text-muted">Currency</small>
-                        <h4>${currency.currency_code || country.currency_code}</h4>
-                        <p class="text-muted mb-1">${currency.currency_name || country.currency_name || '-'}</p>
+                        <h4>${currencyCode}</h4>
+                        <p class="text-muted mb-1">${currencyName}</p>
                     </div>
                     <div class="mt-3">
                         <small class="text-muted">1 USD =</small>
-                        <h3>${rate > 0 ? formatCurrency(rate) : 'N/A'} <small class="text-muted fs-6">${currency.currency_code || ''}</small></h3>
+                        <h3>${rate > 0 ? formatCurrency(rate) : 'N/A'} ${rate > 0 ? `<small class="text-muted fs-6">${currencyCode}</small>` : ''}</h3>
                     </div>
                     <div class="mt-2">
                         <small class="${changeClass}">
-                            ${changeArrow} ${Math.abs(currency.change_7d || 0).toFixed(2)}% (7d)
+                            ${changeArrow} ${Math.abs(change7d).toFixed(2)}% (7d)
                         </small>
                     </div>
                 </div>
@@ -1128,23 +1173,25 @@ function displayNewsTab() {
     Object.keys(comparisonData).forEach((code, index) => {
         const data = comparisonData[code];
         const country = data.country;
-        const news = data.news;
+        const news = data.news || {};
         
         const flagEmoji = getFlagEmoji(country.flag_url);
         
-        // Calculate sentiment distribution
-        const totalArticles = news.articles?.length || 0;
-        const positive = news.articles?.filter(a => a.sentiment === 'positive').length || 0;
-        const negative = news.articles?.filter(a => a.sentiment === 'negative').length || 0;
-        const neutral = totalArticles - positive - negative;
+        // Get sentiment analysis from GNewsService response structure
+        const sentimentAnalysis = news.sentiment_analysis || {};
+        const positive = sentimentAnalysis.positive || 0;
+        const negative = sentimentAnalysis.negative || 0;
+        const neutral = sentimentAnalysis.neutral || 0;
+        const totalArticles = sentimentAnalysis.total || 0;
         
         labels.push(country.name);
         positiveData.push(positive);
         negativeData.push(negative);
         neutralData.push(neutral);
         
+        // Calculate sentiment score with safe division
         const sentimentScore = totalArticles > 0 ? ((positive - negative) / totalArticles * 100).toFixed(1) : 0;
-        const sentimentBadge = getSentimentBadge(sentimentScore);
+        const sentimentBadge = getSentimentBadge(parseFloat(sentimentScore));
         
         const col = document.createElement('div');
         col.className = `col-md-${12 / Object.keys(comparisonData).length}`;
@@ -1158,20 +1205,30 @@ function displayNewsTab() {
                         ${sentimentBadge}
                     </div>
                     <hr>
-                    <table class="table table-sm">
-                        <tr>
-                            <td><span class="badge bg-success">Positive</span></td>
-                            <td class="text-end"><strong>${positive}</strong></td>
-                        </tr>
-                        <tr>
-                            <td><span class="badge bg-secondary">Neutral</span></td>
-                            <td class="text-end"><strong>${neutral}</strong></td>
-                        </tr>
-                        <tr>
-                            <td><span class="badge bg-danger">Negative</span></td>
-                            <td class="text-end"><strong>${negative}</strong></td>
-                        </tr>
-                    </table>
+                    ${totalArticles > 0 ? `
+                        <table class="table table-sm">
+                            <tr>
+                                <td><span class="badge bg-success">Positive</span></td>
+                                <td class="text-end"><strong>${positive}</strong></td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge bg-secondary">Neutral</span></td>
+                                <td class="text-end"><strong>${neutral}</strong></td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge bg-danger">Negative</span></td>
+                                <td class="text-end"><strong>${negative}</strong></td>
+                            </tr>
+                        </table>
+                        <small class="text-muted d-block text-center mt-2">
+                            <i class="bi bi-newspaper"></i> ${totalArticles} total articles from GNews API
+                        </small>
+                    ` : `
+                        <div class="text-center text-muted py-3">
+                            <i class="bi bi-info-circle"></i>
+                            <p class="mb-0">No news articles available</p>
+                        </div>
+                    `}
                 </div>
             </div>
         `;
@@ -1186,6 +1243,9 @@ function displayPortsTab() {
     const container = document.getElementById('portsContent');
     container.innerHTML = '';
     
+    console.log('🚢 displayPortsTab() called');
+    console.log('🚢 comparisonData:', comparisonData);
+    
     const colors = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12'];
     
     Object.keys(comparisonData).forEach((code, index) => {
@@ -1193,10 +1253,17 @@ function displayPortsTab() {
         const country = data.country;
         const ports = data.ports || [];
         
+        console.log(`🚢 Processing ${country.name}:`);
+        console.log(`   - code: ${code}`);
+        console.log(`   - ports type:`, typeof ports);
+        console.log(`   - ports isArray:`, Array.isArray(ports));
+        console.log(`   - ports length:`, ports.length);
+        console.log(`   - ports value:`, ports);
+        
         const flagEmoji = getFlagEmoji(country.flag_url);
         
-        // Get top 5 largest ports (by harbor_size if available)
-        const majorPorts = ports.slice(0, 5);
+        // Get top 10 ports for display (instead of 5)
+        const majorPorts = ports.slice(0, 10);
         
         const col = document.createElement('div');
         col.className = `col-md-${12 / Object.keys(comparisonData).length}`;
@@ -1212,25 +1279,37 @@ function displayPortsTab() {
                     ${ports.length > 0 ? `
                         <div>
                             <strong class="mb-2 d-block">Major Ports:</strong>
-                            <ul class="list-unstyled">
-                                ${majorPorts.map(port => `
-                                    <li class="mb-2">
-                                        <i class="bi bi-geo-alt-fill text-primary"></i>
-                                        <strong>${port.port_name}</strong>
-                                        <br>
-                                        <small class="text-muted ms-3">
-                                            ${port.harbor_size ? `<span class="badge bg-info">${port.harbor_size}</span>` : ''}
-                                            ${port.world_port_index ? `WPI: ${port.world_port_index}` : ''}
-                                        </small>
-                                    </li>
-                                `).join('')}
-                            </ul>
-                            ${ports.length > 5 ? `<small class="text-muted">+ ${ports.length - 5} more ports</small>` : ''}
+                            <div style="max-height: 400px; overflow-y: auto;">
+                                <ul class="list-unstyled">
+                                    ${majorPorts.map(port => `
+                                        <li class="mb-2 pb-2 border-bottom">
+                                            <i class="bi bi-geo-alt-fill text-primary"></i>
+                                            <strong>${port.port_name || port.name}</strong>
+                                            <br>
+                                            <small class="text-muted ms-3">
+                                                ${port.harbor_size ? `<span class="badge bg-info me-1">${port.harbor_size}</span>` : ''}
+                                                ${port.world_port_index ? `WPI: ${port.world_port_index}` : ''}
+                                            </small>
+                                        </li>
+                                    `).join('')}
+                                </ul>
+                            </div>
+                            ${ports.length > 10 ? `
+                                <div class="text-center mt-2">
+                                    <small class="text-muted">+ ${ports.length - 10} more ports</small>
+                                </div>
+                            ` : ''}
+                            <div class="mt-3 text-center">
+                                <small class="text-muted">
+                                    <i class="bi bi-database"></i> Data from Port Map
+                                </small>
+                            </div>
                         </div>
                     ` : `
                         <div class="text-center text-muted py-3">
                             <i class="bi bi-info-circle"></i>
                             <p class="mb-0">No port data available</p>
+                            <small class="text-danger">Debug: ports.length = ${ports.length}</small>
                         </div>
                     `}
                 </div>
@@ -1238,6 +1317,8 @@ function displayPortsTab() {
         `;
         container.appendChild(col);
     });
+    
+    console.log('🚢 displayPortsTab() completed');
 }
 
 function drawCurrencyChart(labels, rates, colors) {

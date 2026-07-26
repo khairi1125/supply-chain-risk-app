@@ -16,6 +16,7 @@ Route::get('/user', function (Request $request) {
 // Country API endpoints
 Route::get('/countries', [CountryController::class, 'index']); // List with filters
 Route::get('/countries/{code}', [CountryController::class, 'show']); // Detailed info
+Route::get('/risk-all', [CountryController::class, 'getAllRisks']); // All risk scores
 Route::get('/risk/{code}', [CountryController::class, 'getRisk']); // Risk score only
 Route::get('/worldbank/{code}', [CountryController::class, 'getWorldBankData']); // GDP & Inflation trends
 

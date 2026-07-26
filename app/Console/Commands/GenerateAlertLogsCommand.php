@@ -57,14 +57,14 @@ class GenerateAlertLogsCommand extends Command
             }
             
             // Check if alert already exists
-            $exists = DB::table('alert_logs')
+            $existing = DB::table('alert_logs')
                 ->where('type', 'economic')
                 ->where('country_code', $country->code)
                 ->where('is_resolved', false)
-                ->exists();
+                ->first();
                 
-            if (!$exists) {
-                $createdAt = $country->calculated_at ?? now()->subHours(rand(1, 48));
+            if (!$existing) {
+                $createdAt = $country->calculated_at ?? now();
                 
                 DB::table('alert_logs')->insert([
                     'type' => 'economic',
@@ -82,6 +82,13 @@ class GenerateAlertLogsCommand extends Command
                     'updated_at' => now(),
                 ]);
                 $alertsGenerated++;
+            } else {
+                DB::table('alert_logs')->where('id', $existing->id)->update([
+                    'severity' => $severity,
+                    'description' => "Risk score: " . number_format($country->total_score, 1) . "/100. Monitor inflation, currency volatility, and economic indicators.",
+                    'color' => $severity === 'critical' ? 'danger' : ($severity === 'high' ? 'warning' : 'info'),
+                    'updated_at' => now(),
+                ]);
             }
         }
         
@@ -115,13 +122,13 @@ class GenerateAlertLogsCommand extends Command
             }
             
             // Check if alert already exists
-            $exists = DB::table('alert_logs')
+            $existing = DB::table('alert_logs')
                 ->where('type', 'news')
                 ->where('country_code', $news->country_code)
                 ->where('created_at', '>=', now()->subDays(7))
-                ->exists();
+                ->first();
                 
-            if (!$exists) {
+            if (!$existing) {
                 DB::table('alert_logs')->insert([
                     'type' => 'news',
                     'severity' => $severity,
@@ -134,10 +141,20 @@ class GenerateAlertLogsCommand extends Command
                     'icon' => $icon,
                     'color' => $color,
                     'is_resolved' => false,
-                    'created_at' => $news->published_at,
+                    'created_at' => $news->published_at ?? now(),
                     'updated_at' => now(),
                 ]);
                 $alertsGenerated++;
+            } else {
+                DB::table('alert_logs')->where('id', $existing->id)->update([
+                    'severity' => $severity,
+                    'title' => "News Alert: {$news->country_name}",
+                    'description' => substr($news->title, 0, 150),
+                    'link' => $news->url,
+                    'icon' => $icon,
+                    'color' => $color,
+                    'updated_at' => now(),
+                ]);
             }
         }
         

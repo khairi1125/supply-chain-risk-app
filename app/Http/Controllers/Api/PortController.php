@@ -121,12 +121,20 @@ class PortController extends Controller
     public function byCountry($countryCode)
     {
         try {
+            if (strlen($countryCode) === 3) {
+                $country = \DB::table('countries')->where('code', $countryCode)->first();
+                if ($country && $country->cca2) {
+                    $countryCode = $country->cca2;
+                }
+            }
+
             $ports = $this->portService->getPortsByCountry($countryCode);
 
             return response()->json([
                 'success' => true,
                 'total' => $ports->count(),
-                'data' => $ports
+                'data' => $ports,
+                'is_dummy' => false
             ]);
         } catch (\Exception $e) {
             return response()->json([

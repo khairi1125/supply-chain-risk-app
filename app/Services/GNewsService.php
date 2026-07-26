@@ -176,8 +176,8 @@ class GNewsService
             }
             
             if (empty($this->apiKey) || $this->apiKey === 'your_key_here' || strlen($this->apiKey) < 10) {
-                Log::warning('GNews API: Using mock data (invalid or missing API key)');
-                return $this->getMockNews($query);
+                Log::warning('GNews API: Invalid or missing API key. Returning empty results.');
+                return [];
             }
 
             $params = [
@@ -205,38 +205,40 @@ class GNewsService
                 // Check for API errors
                 if (isset($data['errors'])) {
                     Log::error('GNews API Error: ' . json_encode($data['errors']));
-                    return $this->getMockNews($query);
+                    return [];
                 }
                 
                 $articles = $data['articles'] ?? [];
                 
-                // Map articles to standard format
+                // Map articles to standard format (include image from GNews)
                 $formattedArticles = collect($articles)->map(function ($article) {
                     return [
-                        'title' => $article['title'] ?? '',
-                        'description' => $article['description'] ?? '',
-                        'url' => $article['url'] ?? '',
-                        'source' => $article['source']['name'] ?? 'Unknown',
+                        'title'        => $article['title'] ?? '',
+                        'description'  => $article['description'] ?? '',
+                        'url'          => $article['url'] ?? '',
+                        'source'       => $article['source']['name'] ?? 'Unknown',
                         'published_at' => $article['publishedAt'] ?? now()->toIso8601String(),
+                        'image_url'    => $article['image'] ?? null,  // GNews returns 'image' field
                     ];
                 })->toArray();
                 
                 // Cache API results for 30 minutes to prevent excessive API calls
                 \Illuminate\Support\Facades\Cache::put($cacheKey, $formattedArticles, 30 * 60);
                 
-                // Also cache articles to database for long-term storage
-                if ($cacheCountryName && !empty($formattedArticles)) {
-                    $this->cacheNews($articles, $cacheCountryName);
-                }
+                // NOTE: NewsController handles its own DB insert with cache_key.
+                // We do NOT call cacheNews() here to avoid double-insert and missing cache_key column.
+                // if ($cacheCountryName && !empty($formattedArticles)) {
+                //     $this->cacheNews($articles, $cacheCountryName);
+                // }
                 
                 return $formattedArticles;
             }
 
             Log::error('GNews API failed', ['status' => $response->status()]);
-            return $this->getMockNews($query);
+            return [];
         } catch (\Exception $e) {
             Log::error('GNews API Error: ' . $e->getMessage());
-            return $this->getMockNews($query);
+            return [];
         }
     }
 
@@ -271,7 +273,7 @@ class GNewsService
     }
     
     /**
-     * Cache news to database
+     * Cache news to database (with image_url and category)
      */
     private function cacheNews($articles, $countryName)
     {
@@ -285,21 +287,55 @@ class GNewsService
                 ->delete();
             
             foreach ($articles as $article) {
+                $title       = $article['title'] ?? '';
+                $description = $article['description'] ?? '';
+                
                 \DB::table('news_cache')->insert([
                     'country_code' => $countryCode,
-                    'title' => $article['title'] ?? '',
-                    'description' => $article['description'] ?? '',
-                    'url' => $article['url'] ?? '',
-                    'source' => $article['source']['name'] ?? 'Unknown',
-                    'sentiment' => 'neutral', // Will be analyzed later
-                    'published_at' => isset($article['publishedAt']) ? \Carbon\Carbon::parse($article['publishedAt'])->format('Y-m-d H:i:s') : now()->format('Y-m-d H:i:s'),
-                    'created_at' => now(),
-                    'updated_at' => now(),
+                    'title'        => $title,
+                    'description'  => $description,
+                    'url'          => $article['url'] ?? '',
+                    'source'       => $article['source']['name'] ?? ($article['source'] ?? 'Unknown'),
+                    'image_url'    => $article['image'] ?? ($article['image_url'] ?? null),
+                    'category'     => $this->detectCategory($title . ' ' . $description),
+                    'sentiment'    => 'neutral', // Will be analyzed after caching
+                    'published_at' => isset($article['publishedAt'])
+                        ? \Carbon\Carbon::parse($article['publishedAt'])->format('Y-m-d H:i:s')
+                        : now()->format('Y-m-d H:i:s'),
+                    'created_at'   => now(),
+                    'updated_at'   => now(),
                 ]);
             }
         } catch (\Exception $e) {
             Log::error('Failed to cache news: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Auto-detect article category from text keywords
+     */
+    private function detectCategory(string $text): string
+    {
+        $text = strtolower($text);
+        $categories = [
+            'logistics'   => ['shipping', 'logistics', 'port', 'cargo', 'freight', 'transport', 'supply chain', 'delivery', 'warehouse', 'vessel'],
+            'economy'     => ['economy', 'trade', 'tariff', 'commerce', 'business', 'market', 'economic', 'gdp', 'inflation', 'finance', 'export', 'import'],
+            'geopolitics' => ['geopolitics', 'diplomatic', 'sanctions', 'conflict', 'tension', 'political', 'relations', 'government', 'policy', 'war', 'military'],
+            'weather'     => ['weather', 'climate', 'disaster', 'storm', 'flood', 'typhoon', 'hurricane', 'rain', 'drought', 'temperature', 'earthquake'],
+        ];
+
+        $scores = [];
+        foreach ($categories as $cat => $keywords) {
+            $score = 0;
+            foreach ($keywords as $keyword) {
+                $score += substr_count($text, $keyword);
+            }
+            $scores[$cat] = $score;
+        }
+
+        arsort($scores);
+        $top = key($scores);
+        return ($scores[$top] > 0) ? $top : 'logistics';
     }
 
     /**

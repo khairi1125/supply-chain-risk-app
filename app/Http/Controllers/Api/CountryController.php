@@ -211,6 +211,20 @@ class CountryController extends Controller
     }
 
     /**
+     * Get all cached risk scores at once to prevent connection pool starvation
+     * GET /api/risk-all
+     */
+    public function getAllRisks()
+    {
+        $risks = DB::table('risk_scores')
+            ->select('country_code', 'total_score', 'risk_level')
+            ->get()
+            ->keyBy('country_code');
+            
+        return response()->json($risks);
+    }
+
+    /**
      * Get World Bank trend data
      * GET /api/worldbank/{code}
      */

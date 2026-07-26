@@ -112,132 +112,197 @@ foreach ($articles as $article) {
     }
     
     /**
-     * Search news with sentiment analysis (for News Dashboard)
-     * OPTIMIZED VERSION: Fast loading with caching from database
+     * Search news with sentiment analysis (for News Dashboard - User Facing)
+     *
+     * Alur kerja (BENAR):
+     * 1. Cek apakah tabel news_cache punya data segar (< 6 jam)
+     * 2. Jika ADA → langsung kembalikan dari cache + hitung sentimen
+     * 3. Jika TIDAK ADA / USANG → panggil GNewsService (fetch dari GNews API)
+     *    → GNewsService simpan hasilnya ke tabel news_cache
+     *    → Jalankan SentimentAnalysisService pada setiap artikel
+     *    → Simpan sentimen ke news_cache
+     *    → Kembalikan hasilnya ke frontend
      */
     public function searchNews(Request $request)
     {
-        $query = $request->input('q', '');
-        $limit = min($request->input('limit', 20), 50); // Max 50 for performance
-        
-        // Create cache key based on query parameters
-        $cacheKey = 'news_search_' . md5($query . $limit);
-        
+        $query    = $request->input('q', '');
+        $limit    = min($request->input('limit', 20), 50);
+        $forceRefresh = (bool) $request->input('force_refresh', false);
+
         try {
-            // Use cache for 5 minutes to reduce database load
-            $result = cache()->remember($cacheKey, 300, function() use ($query, $limit) {
-                // OPTIMIZED QUERY: Select only needed columns
-                $articlesQuery = DB::table('articles')
-                    ->select(
-                        'id',
-                        'title',
-                        'description',
-                        'url',
-                        'source',
-                        'category',
-                        'sentiment',
-                        'sentiment_score',
-                        'sentiment_confidence',
-                        'published_at'
-                    )
-                    ->where('status', 'published')
-                    ->whereNotNull('published_at')
-                    ->where('published_at', '<=', now());
-                
-                // Optimized search: Use FULLTEXT search if query exists
-                if (!empty($query)) {
-                    // Check if description column exists
-                    $columns = DB::select("SHOW COLUMNS FROM articles LIKE 'description'");
-                    
-                    if (!empty($columns)) {
-                        // Use FULLTEXT search (much faster than LIKE)
-                        $articlesQuery->whereRaw(
-                            "MATCH(title, description) AGAINST(? IN NATURAL LANGUAGE MODE)",
-                            [$query]
-                        );
-                    } else {
-                        // Fallback to LIKE search only on title
-                        $articlesQuery->where('title', 'LIKE', "%{$query}%");
+            // ─── Tentukan topik pencarian ─────────────────────────────────────────
+            $baseKeywords = '"supply chain" OR logistics OR trade OR shipping';
+
+            // Kalau user ketik nama negara, tambahkan konteks supply chain
+            if (!empty($query)) {
+                $searchTopic = "\"{$query}\" AND ({$baseKeywords})";
+                $cacheKey    = 'country_' . strtolower(trim($query));
+            } else {
+                $searchTopic = $baseKeywords;
+                $cacheKey    = 'global';
+            }
+
+            // ─── Cek cache KHUSUS untuk query ini ────────────────────────────────
+            // Setiap query (negara/topik) punya slot cache tersendiri di tabel.
+            // Ini memastikan "Indonesia" tidak memunculkan hasil cache "GLOBAL".
+            $freshCacheCount = DB::table('news_cache')
+                ->where('cache_key', $cacheKey)
+                ->where('created_at', '>=', now()->subHours(6))
+                ->count();
+
+            // ─── Fetch dari API jika cache kosong/usang ATAU force refresh ────────
+            if ($freshCacheCount < 3 || $forceRefresh) {
+                \Log::info("NewsController@searchNews: cache miss for key='{$cacheKey}'. Fetching from API: '{$searchTopic}'");
+
+                // Hapus cache lama untuk query ini saja
+                DB::table('news_cache')->where('cache_key', $cacheKey)->delete();
+
+                $fetchedArticles = $this->gNewsService->searchNews(
+                    $searchTopic,
+                    null, null, $limit,
+                    strtoupper($cacheKey)
+                );
+
+                if (!empty($fetchedArticles)) {
+                    $sentimentService = app(\App\Services\SentimentAnalysisService::class);
+
+                    foreach ($fetchedArticles as $art) {
+                        $text      = ($art['title'] ?? '') . ' ' . ($art['description'] ?? '');
+                        $sentiment = $sentimentService->analyzeSentiment($text);
+
+                        DB::table('news_cache')->insert([
+                            'cache_key'      => $cacheKey,
+                            'country_code'   => !empty($query) ? strtoupper(substr($query, 0, 3)) : 'GLO',
+                            'title'          => $art['title'] ?? '',
+                            'description'    => $art['description'] ?? '',
+                            'url'            => $art['url'] ?? '',
+                            'source'         => $art['source'] ?? 'Unknown',
+                            'image_url'      => $art['image_url'] ?? null,
+                            'category'       => $art['category'] ?? 'logistics',
+                            'sentiment'      => $sentiment['sentiment'],
+                            'positive_score' => $sentiment['positive_count'] ?? 0,
+                            'negative_score' => $sentiment['negative_count'] ?? 0,
+                            'published_at'   => isset($art['published_at'])
+                                ? \Carbon\Carbon::parse($art['published_at'])->format('Y-m-d H:i:s')
+                                : now()->format('Y-m-d H:i:s'),
+                            'created_at'     => now(),
+                            'updated_at'     => now(),
+                        ]);
                     }
+
+                    \Log::info("NewsController: Saved " . count($fetchedArticles) . " articles for cache_key='{$cacheKey}'");
                 }
-                
-                $articlesQuery->orderBy('published_at', 'desc');
-                
-                // Get articles
-                $articles = $articlesQuery->limit($limit)->get();
-                
-                // If no articles found, return MOCK DATA
-                if ($articles->isEmpty()) {
-                    $mockArticles = $this->getMockNewsData();
-                    return $this->prepareMockResponse($mockArticles);
-                }
-                
-                // Format articles - NO PROCESSING, direct column mapping
-                $formattedArticles = $articles->map(function($article) {
-                    return [
-                        'title' => $article->title,
-                        'description' => $article->description ?? substr(strip_tags($article->content ?? ''), 0, 200) . '...',
-                        'url' => $article->url ?? '#',
-                        'source' => $article->source ?? 'Admin',
-                        'published_at' => $article->published_at,
-                        'category' => $article->category,
-                        'sentiment' => $article->sentiment ?? 'neutral',
-                        'sentiment_score' => $article->sentiment_score ?? 0,
-                        'sentiment_confidence' => $article->sentiment_confidence ?? 0
-                    ];
-                })->toArray();
-                
-                // Calculate sentiment statistics
-                $sentimentCounts = collect($formattedArticles)->countBy('sentiment');
-                $total = count($formattedArticles);
-                
-                $positive = $sentimentCounts['positive'] ?? 0;
-                $negative = $sentimentCounts['negative'] ?? 0;
-                $neutral = $sentimentCounts['neutral'] ?? 0;
-                
-                // Determine overall sentiment
-                $overallSentiment = 'neutral';
-                if ($positive > $negative && $positive > $neutral) {
-                    $overallSentiment = 'positive';
-                } elseif ($negative > $positive && $negative > $neutral) {
-                    $overallSentiment = 'negative';
-                }
-                
-                $sentimentAnalysis = [
-                    'overall_sentiment' => $overallSentiment,
-                    'positive' => $positive,
-                    'neutral' => $neutral,
-                    'negative' => $negative,
-                    'total' => $total,
-                    'positive_percentage' => $total > 0 ? round(($positive / $total) * 100, 1) : 0,
-                    'neutral_percentage' => $total > 0 ? round(($neutral / $total) * 100, 1) : 0,
-                    'negative_percentage' => $total > 0 ? round(($negative / $total) * 100, 1) : 0
-                ];
-                
+            } else {
+                \Log::info("NewsController@searchNews: cache hit for key='{$cacheKey}' ({$freshCacheCount} items)");
+            }
+
+            // ─── Ambil data dari tabel news_cache (khusus cache_key ini) ──────────
+            $cachedNews = DB::table('news_cache')
+                ->select('id', 'title', 'description', 'url', 'source', 'sentiment',
+                         'positive_score', 'negative_score', 'published_at', 'country_code',
+                         'image_url', 'category')
+                ->where('cache_key', $cacheKey)
+                ->where('created_at', '>=', now()->subHours(6))
+                ->orderBy('published_at', 'desc')
+                ->limit($limit)
+                ->get();
+
+            // ─── Kembalikan data kosong jika tidak ada berita ──────────────────────
+            if ($cachedNews->isEmpty()) {
+                \Log::info('NewsController@searchNews: No news found for query: ' . $query);
+                return response()->json([
+                    'success' => true,
+                    'data'    => [
+                        'articles' => [],
+                        'sentiment_analysis' => [
+                            'positive' => 0, 'neutral' => 0, 'negative' => 0, 'total' => 0,
+                            'positive_percentage' => 0, 'neutral_percentage' => 0, 'negative_percentage' => 0,
+                            'overall_sentiment' => 'neutral'
+                        ]
+                    ],
+                    'source'  => 'api',
+                    'message' => 'No supply chain news found for this country today.',
+                ]);
+            }
+
+            // ─── Format hasil untuk dikirim ke frontend ───────────────────────
+            $formattedArticles = $cachedNews->map(function ($item) {
+                // Konversi score ke confidence percentage (estimasi)
+                $total = ($item->positive_score ?? 0) + ($item->negative_score ?? 0);
+                $confidence = $total > 0
+                    ? round((max($item->positive_score, $item->negative_score) / $total) * 100, 1)
+                    : 70; // default confidence
+
+                // Hitung sentiment_score (-1 to 1)
+                $sentimentScore = $total > 0
+                    ? round(($item->positive_score - $item->negative_score) / $total, 3)
+                    : 0;
+
                 return [
-                    'articles' => $formattedArticles,
-                    'sentiment_analysis' => $sentimentAnalysis,
-                    'source' => 'database'
+                    'title'                => $item->title,
+                    'description'          => $item->description ?? 'No description available.',
+                    'url'                  => $item->url ?? '#',
+                    'source'               => $item->source ?? 'Unknown',
+                    'published_at'         => $item->published_at,
+                    'category'             => $item->category ?? 'logistics',
+                    'image_url'            => $item->image_url ?? null,
+                    'sentiment'            => $item->sentiment,
+                    'sentiment_score'      => $sentimentScore,
+                    'sentiment_confidence' => $confidence,
                 ];
-            });
-            
+            })->toArray();
+
+            // ─── Hitung statistik sentimen ────────────────────────────────────
+            $sentimentCounts = collect($formattedArticles)->countBy('sentiment');
+            $total           = count($formattedArticles);
+            $positive        = $sentimentCounts['positive'] ?? 0;
+            $negative        = $sentimentCounts['negative'] ?? 0;
+            $neutral         = $sentimentCounts['neutral'] ?? 0;
+
+            $overallSentiment = 'neutral';
+            if ($positive > $negative && $positive > $neutral) {
+                $overallSentiment = 'positive';
+            } elseif ($negative > $positive && $negative > $neutral) {
+                $overallSentiment = 'negative';
+            }
+
+            $sentimentAnalysis = [
+                'overall_sentiment'    => $overallSentiment,
+                'positive'             => $positive,
+                'neutral'              => $neutral,
+                'negative'             => $negative,
+                'total'                => $total,
+                'positive_percentage'  => $total > 0 ? round(($positive / $total) * 100, 1) : 0,
+                'neutral_percentage'   => $total > 0 ? round(($neutral / $total) * 100, 1) : 0,
+                'negative_percentage'  => $total > 0 ? round(($negative / $total) * 100, 1) : 0,
+            ];
+
             return response()->json([
                 'success' => true,
-                'data' => $result,
-                'query' => $query,
-                'limit' => $limit,
-                'cached' => cache()->has($cacheKey)
+                'data'    => [
+                    'articles'          => $formattedArticles,
+                    'sentiment_analysis' => $sentimentAnalysis,
+                    'source'            => 'news_cache',
+                ],
+                'query'  => $query,
+                'limit'  => $limit,
+                'cached' => true,
             ]);
-            
+
         } catch (\Exception $e) {
-            \Log::error('News search error: ' . $e->getMessage());
-            
-            // Return mock data on error
+            \Log::error('NewsController@searchNews Error: ' . $e->getMessage());
+
             return response()->json([
                 'success' => true,
-                'data' => $this->prepareMockResponse($this->getMockNewsData()),
-                'message' => 'Error fetching news, showing demo data',
-                'error' => config('app.debug') ? $e->getMessage() : null
+                'data'    => [
+                    'articles' => [],
+                    'sentiment_analysis' => [
+                        'positive' => 0, 'neutral' => 0, 'negative' => 0, 'total' => 0,
+                        'positive_percentage' => 0, 'neutral_percentage' => 0, 'negative_percentage' => 0,
+                        'overall_sentiment' => 'neutral'
+                    ]
+                ],
+                'message' => 'An error occurred: ' . (config('app.debug') ? $e->getMessage() : 'Please try again.'),
             ]);
         }
     }
@@ -305,118 +370,120 @@ foreach ($articles as $article) {
     /**
      * Get mock news data for demo purposes
      */
-    private function getMockNewsData()
+    private function getMockNewsData($query = '')
     {
+        $countryName = !empty($query) ? $query : 'Global';
+        
         return [
             [
-                'title' => 'Global Supply Chain Recovery Shows Positive Signs',
-                'description' => 'International shipping routes are stabilizing as port congestion eases worldwide. Industry experts predict continued improvement in Q4 2026...',
+                'title' => $countryName . ' Supply Chain Shows Strong Recovery Signs',
+                'description' => 'Recent data indicates robust improvement in supply chain operations across ' . $countryName . '. Logistics networks are stabilizing with reduced congestion at major distribution hubs...',
                 'url' => 'https://example.com/news/1',
                 'source' => 'Supply Chain Today',
                 'published_at' => now()->subHours(2)->format('Y-m-d H:i:s'),
-                'category' => 'Logistics',
+                'category' => 'logistics',
                 'sentiment' => 'positive',
-                'sentiment_score' => 0.7,
-                'sentiment_confidence' => 85
-            ],
-            [
-                'title' => 'Port Strikes Cause Delays in Major Asian Hubs',
-                'description' => 'Labor disputes at several key ports in Asia are causing significant shipping delays. Companies are seeking alternative routes...',
-                'url' => 'https://example.com/news/2',
-                'source' => 'Maritime News',
-                'published_at' => now()->subHours(5)->format('Y-m-d H:i:s'),
-                'category' => 'Ports',
-                'sentiment' => 'negative',
-                'sentiment_score' => -0.6,
-                'sentiment_confidence' => 78
-            ],
-            [
-                'title' => 'New Technology Enhances Supply Chain Visibility',
-                'description' => 'AI-powered tracking systems are revolutionizing how companies monitor their supply chains in real-time...',
-                'url' => 'https://example.com/news/3',
-                'source' => 'Tech Business',
-                'published_at' => now()->subHours(8)->format('Y-m-d H:i:s'),
-                'category' => 'Technology',
-                'sentiment' => 'positive',
-                'sentiment_score' => 0.5,
-                'sentiment_confidence' => 90
-            ],
-            [
-                'title' => 'Fuel Prices Impact Shipping Costs',
-                'description' => 'Rising fuel costs are putting pressure on shipping companies to increase freight rates...',
-                'url' => 'https://example.com/news/4',
-                'source' => 'Economic Times',
-                'published_at' => now()->subHours(12)->format('Y-m-d H:i:s'),
-                'category' => 'Economy',
-                'sentiment' => 'negative',
-                'sentiment_score' => -0.4,
-                'sentiment_confidence' => 72
-            ],
-            [
-                'title' => 'Green Shipping Initiatives Gain Momentum',
-                'description' => 'Environmental regulations are driving shipping companies to adopt cleaner technologies and sustainable practices...',
-                'url' => 'https://example.com/news/5',
-                'source' => 'Green Business',
-                'published_at' => now()->subHours(16)->format('Y-m-d H:i:s'),
-                'category' => 'Environment',
-                'sentiment' => 'positive',
-                'sentiment_score' => 0.6,
+                'sentiment_score' => 0.75,
                 'sentiment_confidence' => 88
             ],
             [
-                'title' => 'Trade War Concerns Affect Global Markets',
-                'description' => 'Ongoing trade tensions between major economies are creating uncertainty in international trade...',
-                'url' => 'https://example.com/news/6',
-                'source' => 'Global Trade Journal',
-                'published_at' => now()->subHours(20)->format('Y-m-d H:i:s'),
-                'category' => 'Trade',
-                'sentiment' => 'negative',
-                'sentiment_score' => -0.5,
-                'sentiment_confidence' => 80
-            ],
-            [
-                'title' => 'Warehouse Automation Increases Efficiency',
-                'description' => 'Automated warehousing solutions are helping companies handle increased demand while reducing costs...',
-                'url' => 'https://example.com/news/7',
-                'source' => 'Logistics Weekly',
-                'published_at' => now()->subDay()->format('Y-m-d H:i:s'),
-                'category' => 'Logistics',
+                'title' => 'Trade Volume in ' . $countryName . ' Increases by 15% This Quarter',
+                'description' => 'Import and export activities show significant growth as economic conditions improve. Port throughput reaches record levels...',
+                'url' => 'https://example.com/news/2',
+                'source' => 'Economic Times',
+                'published_at' => now()->subHours(5)->format('Y-m-d H:i:s'),
+                'category' => 'economy',
                 'sentiment' => 'positive',
-                'sentiment_score' => 0.8,
-                'sentiment_confidence' => 92
+                'sentiment_score' => 0.68,
+                'sentiment_confidence' => 85
             ],
             [
-                'title' => 'Container Shortage Situation Improves',
-                'description' => 'The global container shortage that plagued supply chains is showing signs of resolution...',
-                'url' => 'https://example.com/news/8',
-                'source' => 'Shipping Herald',
-                'published_at' => now()->subDay()->subHours(4)->format('Y-m-d H:i:s'),
-                'category' => 'Shipping',
+                'title' => 'Labor Negotiations at ' . $countryName . ' Ports Remain Ongoing',
+                'description' => 'Union discussions continue regarding working conditions at major port facilities. Both parties express commitment to reaching resolution...',
+                'url' => 'https://example.com/news/3',
+                'source' => 'Maritime News',
+                'published_at' => now()->subHours(8)->format('Y-m-d H:i:s'),
+                'category' => 'logistics',
                 'sentiment' => 'neutral',
-                'sentiment_score' => 0.1,
-                'sentiment_confidence' => 65
-            ],
-            [
-                'title' => 'E-commerce Growth Drives Logistics Innovation',
-                'description' => 'The continued expansion of e-commerce is pushing logistics companies to innovate and adapt...',
-                'url' => 'https://example.com/news/9',
-                'source' => 'Retail Insight',
-                'published_at' => now()->subDay()->subHours(8)->format('Y-m-d H:i:s'),
-                'category' => 'E-commerce',
-                'sentiment' => 'neutral',
-                'sentiment_score' => 0.2,
+                'sentiment_score' => 0.05,
                 'sentiment_confidence' => 70
             ],
             [
-                'title' => 'Weather Disruptions Affect Shipping Schedules',
-                'description' => 'Severe weather in the Pacific Ocean is causing delays in major shipping routes...',
-                'url' => 'https://example.com/news/10',
+                'title' => 'New Technology Enhances ' . $countryName . ' Logistics Efficiency',
+                'description' => 'AI-powered tracking systems are revolutionizing supply chain visibility in ' . $countryName . ', enabling real-time monitoring and predictive analytics...',
+                'url' => 'https://example.com/news/4',
+                'source' => 'Tech Business',
+                'published_at' => now()->subHours(12)->format('Y-m-d H:i:s'),
+                'category' => 'technology',
+                'sentiment' => 'positive',
+                'sentiment_score' => 0.82,
+                'sentiment_confidence' => 92
+            ],
+            [
+                'title' => 'Fuel Price Fluctuations Impact ' . $countryName . ' Shipping Costs',
+                'description' => 'Rising energy prices create challenges for logistics operators. Industry experts recommend efficiency improvements to offset increased operational expenses...',
+                'url' => 'https://example.com/news/5',
+                'source' => 'Shipping Herald',
+                'published_at' => now()->subHours(16)->format('Y-m-d H:i:s'),
+                'category' => 'economy',
+                'sentiment' => 'negative',
+                'sentiment_score' => -0.45,
+                'sentiment_confidence' => 78
+            ],
+            [
+                'title' => $countryName . ' Implements Green Shipping Standards',
+                'description' => 'Environmental regulations drive adoption of sustainable practices in maritime industry. Clean energy initiatives gain momentum across port facilities...',
+                'url' => 'https://example.com/news/6',
+                'source' => 'Green Business',
+                'published_at' => now()->subHours(20)->format('Y-m-d H:i:s'),
+                'category' => 'environment',
+                'sentiment' => 'positive',
+                'sentiment_score' => 0.72,
+                'sentiment_confidence' => 86
+            ],
+            [
+                'title' => 'Infrastructure Development in ' . $countryName . ' Accelerates',
+                'description' => 'Major investments in port expansion and transportation networks support growing trade volumes. Government announces multi-year development plans...',
+                'url' => 'https://example.com/news/7',
+                'source' => 'Infrastructure Today',
+                'published_at' => now()->subDay()->format('Y-m-d H:i:s'),
+                'category' => 'logistics',
+                'sentiment' => 'positive',
+                'sentiment_score' => 0.78,
+                'sentiment_confidence' => 89
+            ],
+            [
+                'title' => 'Weather Conditions Cause Temporary Delays in ' . $countryName,
+                'description' => 'Adverse weather impacts shipping schedules temporarily. Operations expected to normalize within 48 hours as conditions improve...',
+                'url' => 'https://example.com/news/8',
                 'source' => 'Weather & Trade',
-                'published_at' => now()->subDay()->subHours(12)->format('Y-m-d H:i:s'),
-                'category' => 'Weather',
+                'published_at' => now()->subDay()->subHours(4)->format('Y-m-d H:i:s'),
+                'category' => 'weather',
                 'sentiment' => 'neutral',
-                'sentiment_score' => -0.1,
-                'sentiment_confidence' => 68
+                'sentiment_score' => -0.15,
+                'sentiment_confidence' => 72
+            ],
+            [
+                'title' => 'E-commerce Growth Drives Logistics Innovation in ' . $countryName,
+                'description' => 'Online retail expansion creates opportunities for logistics sector. Last-mile delivery solutions see increased investment and technological advancement...',
+                'url' => 'https://example.com/news/9',
+                'source' => 'Retail Insight',
+                'published_at' => now()->subDay()->subHours(8)->format('Y-m-d H:i:s'),
+                'category' => 'economy',
+                'sentiment' => 'positive',
+                'sentiment_score' => 0.65,
+                'sentiment_confidence' => 84
+            ],
+            [
+                'title' => 'Container Shortage Situation Improves in ' . $countryName,
+                'description' => 'Equipment availability returns to normal levels after extended supply constraints. Industry reports improved operational flexibility...',
+                'url' => 'https://example.com/news/10',
+                'source' => 'Global Trade Journal',
+                'published_at' => now()->subDay()->subHours(12)->format('Y-m-d H:i:s'),
+                'category' => 'logistics',
+                'sentiment' => 'neutral',
+                'sentiment_score' => 0.25,
+                'sentiment_confidence' => 75
             ]
         ];
     }

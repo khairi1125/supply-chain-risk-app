@@ -468,9 +468,9 @@
                 <i class="fas fa-plus-circle"></i>
                 <span>Add New Port</span>
             </a>
-            <a href="{{ route('admin.articles.import') }}" class="action-btn">
-                <i class="fas fa-download"></i>
-                <span>Import News</span>
+            <a href="{{ route('admin.articles.create') }}" class="action-btn">
+                <i class="fas fa-newspaper"></i>
+                <span>Write Article</span>
             </a>
             <a href="{{ route('admin.ports.map') }}" class="action-btn">
                 <i class="fas fa-map"></i>

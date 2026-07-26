@@ -849,6 +849,9 @@
             <a class="nav-link {{ request()->routeIs('port.map') ? 'active' : '' }}" href="{{ route('port.map') }}">
                 <i class="fas fa-ship"></i> Port Map
             </a>
+            <a class="nav-link {{ request()->routeIs('shipping.route') ? 'active' : '' }}" href="{{ route('shipping.route') }}">
+                <i class="fas fa-route"></i> Shipping Route
+            </a>
             <a class="nav-link {{ request()->routeIs('weather.map') ? 'active' : '' }}" href="{{ route('weather.map') }}">
                 <i class="fas fa-cloud-sun-rain"></i> Weather Map
             </a>
@@ -857,6 +860,9 @@
             </a>
             <a class="nav-link {{ request()->routeIs('news') ? 'active' : '' }}" href="{{ route('news') }}">
                 <i class="bi bi-newspaper"></i> News Intelligence
+            </a>
+            <a class="nav-link {{ request()->routeIs('expert.analysis') ? 'active' : '' }}" href="{{ route('expert.analysis') }}">
+                <i class="fas fa-file-contract"></i> Expert Analysis
             </a>
             <a class="nav-link {{ request()->routeIs('compare') ? 'active' : '' }}" href="{{ route('compare') }}">
                 <i class="fas fa-code-compare"></i> Compare Countries
