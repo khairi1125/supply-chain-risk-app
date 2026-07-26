@@ -13,8 +13,7 @@ class SentimentAnalysisService
     
     public function __construct()
     {
-        // Load sentiment words from database and cache them
-        $this->loadSentimentWords();
+        // Sentiment words will be lazy-loaded to prevent DB connections during app boot/artisan commands
     }
     
     /**
@@ -22,13 +21,17 @@ class SentimentAnalysisService
      */
     protected function loadSentimentWords()
     {
-        $this->positiveWords = Cache::remember('positive_words', 86400, function () {
-            return DB::table('positive_words')->pluck('word')->toArray();
-        });
+        if (empty($this->positiveWords)) {
+            $this->positiveWords = Cache::remember('positive_words', 86400, function () {
+                return DB::table('positive_words')->pluck('word')->toArray();
+            });
+        }
         
-        $this->negativeWords = Cache::remember('negative_words', 86400, function () {
-            return DB::table('negative_words')->pluck('word')->toArray();
-        });
+        if (empty($this->negativeWords)) {
+            $this->negativeWords = Cache::remember('negative_words', 86400, function () {
+                return DB::table('negative_words')->pluck('word')->toArray();
+            });
+        }
     }
     
     /**
@@ -39,6 +42,9 @@ class SentimentAnalysisService
      */
     public function analyzeSentiment($text)
     {
+        // Lazy load the dictionary if it hasn't been loaded yet
+        $this->loadSentimentWords();
+        
         if (empty($text)) {
             return [
                 'sentiment' => 'neutral',
