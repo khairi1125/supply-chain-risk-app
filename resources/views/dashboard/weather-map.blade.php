@@ -951,21 +951,36 @@ function displayWeatherOnMap(weatherData) {
     console.log('📍 Displaying weather data with MarkerCluster:', weatherData.length, 'countries');
     console.time('Render markers');
     
-    // STEP 1: Remove cluster group from map completely
+    // STEP 1: Remove and destroy cluster group completely (fixes stale position bug)
     try {
         if (markerClusterGroup) {
             map.removeLayer(markerClusterGroup);
-            console.log('✅ Step 1: Removed existing cluster group from map');
+            markerClusterGroup.clearLayers();
+            markerClusterGroup = null;
+            console.log('✅ Step 1: Destroyed old cluster group');
         }
     } catch (e) {
         console.log('ℹ️ No existing cluster group to remove');
     }
-    
-    // STEP 2: Clear all markers from cluster group
-    if (markerClusterGroup) {
-        markerClusterGroup.clearLayers();
-        console.log('✅ Step 2: Cleared all markers from cluster group');
-    }
+
+    // STEP 2: Create a fresh cluster group each time
+    markerClusterGroup = L.markerClusterGroup({
+        chunkedLoading: true,
+        maxClusterRadius: 80,
+        spiderfyOnMaxZoom: true,
+        showCoverageOnHover: false,
+        zoomToBoundsOnClick: true,
+        iconCreateFunction: function(cluster) {
+            var childCount = cluster.getChildCount();
+            var c = childCount < 10 ? 'small' : childCount < 100 ? 'medium' : 'large';
+            return new L.DivIcon({
+                html: '<div><span>' + childCount + '</span></div>',
+                className: 'marker-cluster marker-cluster-' + c,
+                iconSize: new L.Point(40, 40)
+            });
+        }
+    });
+    console.log('✅ Step 2: Created fresh cluster group');
     
     // STEP 3: Check if we have data
     if (weatherData.length === 0) {

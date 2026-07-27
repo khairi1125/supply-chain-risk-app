@@ -304,21 +304,7 @@ body { background:var(--surface2); }
             </div>
         </div>
 
-        {{-- Weather + Currency --}}
-        <div class="col-xl-3 col-lg-6">
-            <div class="rc">
-                <div class="rc-hd"><i class="fas fa-cloud-sun"></i> Destination Conditions</div>
-                <div class="rc-body" id="conditionsPanel"></div>
-            </div>
-        </div>
 
-        {{-- News --}}
-        <div class="col-xl-3 col-lg-6">
-            <div class="rc">
-                <div class="rc-hd"><i class="fas fa-newspaper"></i> Latest News</div>
-                <div class="rc-body" id="newsPanel"></div>
-            </div>
-        </div>
 
     </div>
 
@@ -397,7 +383,7 @@ async function calculateRoute() {
     // Show skeleton
     document.getElementById('placeholderRow').style.display = 'none';
     document.getElementById('resultsRow').style.display = 'flex';
-    ['routeSummary','riskPanel','conditionsPanel','newsPanel'].forEach(id => {
+    ['routeSummary','riskPanel'].forEach(id => {
         document.getElementById(id).innerHTML = `<div style="text-align:center;padding:2rem;color:var(--txt2);"><i class="fas fa-circle-notch spin" style="font-size:1.5rem;opacity:.4;"></i></div>`;
     });
 
