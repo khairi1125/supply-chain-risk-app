@@ -82,9 +82,16 @@ class WeatherController extends Controller
      * Get weather by coordinates
      * GET /api/weather/{lat}/{lon}
      */
-    public function getWeatherByCoordinates($lat, $lon)
+     public function getWeatherByCoordinates(\Illuminate\Http\Request $request)
     {
         try {
+            $lat = $request->query('lat');
+            $lon = $request->query('lon');
+
+            if ($lat === null || $lon === null) {
+                return response()->json(['success' => false, 'message' => 'lat and lon query parameters are required'], 400);
+            }
+
             $weather = $this->weatherService->getWeather($lat, $lon);
 
             return response()->json([

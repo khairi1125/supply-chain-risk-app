@@ -32,8 +32,7 @@ Route::post('/news/clear-cache', [NewsController::class, 'clearCache']);
 
 // Weather endpoints
 Route::get('/weather/global', [WeatherController::class, 'getGlobalWeather']);
-Route::get('/weather/{lat}/{lon}', [WeatherController::class, 'getWeatherByCoordinates'])
-    ->where(['lat' => '[-0-9.]+', 'lon' => '[-0-9.]+']);
+Route::get('/weather/point', [WeatherController::class, 'getWeatherByCoordinates']); // uses ?lat=&lon= query params
 
 // Port API endpoints
 Route::get('/ports', [PortController::class, 'index']);

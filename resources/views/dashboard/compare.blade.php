@@ -885,7 +885,7 @@ async function fetchComparisonData(countryCodes) {
             const country = allCountries.find(c => c.code === code);
             
             // Fetch weather data
-            const weatherResponse = await fetch(`/api/weather/${country.latitude}/${country.longitude}`);
+            const weatherResponse = await fetch(`/api/weather/point?lat=${country.latitude}&lon=${country.longitude}`);
             const weatherData = await weatherResponse.json();
             
             // Find currency for this country from pre-fetched list
